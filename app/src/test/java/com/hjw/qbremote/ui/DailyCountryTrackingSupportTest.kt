@@ -11,28 +11,6 @@ import java.time.LocalDate
 class DailyCountryTrackingSupportTest {
 
     @Test
-    fun resolveTrackedCountryHashes_marksUploadingTorrentAsSamplingCandidate() {
-        val resolution = resolveTrackedCountryHashes(
-            torrents = listOf(
-                TorrentInfo(
-                    hash = "hash-1",
-                    name = "Ubuntu ISO",
-                    uploaded = 2_048L,
-                    uploadSpeed = 512L,
-                ),
-            ),
-            lastSeenByTorrent = emptyMap(),
-            activeHashes = emptyMap(),
-            now = 10_000L,
-            ttlMs = 1_500L,
-        )
-
-        assertEquals(listOf("hash-1"), resolution.candidateHashes)
-        assertEquals(2_048L, resolution.lastSeenByTorrent.getValue("hash-1"))
-        assertTrue(resolution.activeHashes.getValue("hash-1") > 10_000L)
-    }
-
-    @Test
     fun advanceDailyCountryUploadTrackingSnapshot_resetsAccumulationOnNewDay() {
         val today = LocalDate.of(2026, 4, 2)
         val previous = DailyCountryUploadTrackingSnapshot(

@@ -106,6 +106,84 @@ class TransmissionSessionRecoveryContractTest {
     }
 
     @Test
+    fun `fetchDashboard combines concurrent session, stats and torrent calls`() = runBlocking {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val body = request.body.readUtf8()
+                val payload = when {
+                    body.contains("\"session-stats\"") ->
+                        """{"result":"success","arguments":{"downloadSpeed":10,"uploadSpeed":20,"torrentCount":1,"cumulative-stats":{"downloadedBytes":300,"uploadedBytes":400}}}"""
+                    body.contains("\"free-space\"") ->
+                        """{"result":"success","arguments":{"path":"/downloads","size-bytes":5000}}"""
+                    body.contains("\"torrent-get\"") ->
+                        """{"result":"success","arguments":{"torrents":[{"hashString":"abc","name":"Ubuntu ISO","totalSize":1024}]}}"""
+                    else -> SESSION_GET_BODY
+                }
+                return MockResponse().setResponseCode(200).setBody(payload)
+            }
+        }
+        val backend = TransmissionBackend()
+        backend.connect(testSettings()).getOrThrow()
+
+        val dashboard = backend.fetchDashboard().getOrThrow()
+
+        assertEquals(20L, dashboard.transferInfo.uploadSpeed)
+        assertEquals(400L, dashboard.transferInfo.uploadedTotal)
+        assertEquals(5000L, dashboard.transferInfo.freeSpaceOnDisk)
+        assertEquals(listOf("abc"), dashboard.torrents.map { it.hash })
+        assertEquals("Ubuntu ISO", dashboard.torrents.single().name)
+    }
+
+    @Test
+    fun `share ratio limit uses single-torrent mode and unlimited uses mode 2`() = runBlocking {
+        val bodies = java.util.Collections.synchronizedList(mutableListOf<String>())
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                bodies += request.body.readUtf8()
+                return MockResponse().setResponseCode(200).setBody(SESSION_GET_BODY)
+            }
+        }
+        val backend = TransmissionBackend()
+        backend.connect(testSettings()).getOrThrow()
+
+        backend.setTorrentShareRatio("hash-1", ratioLimit = 2.0).getOrThrow()
+        backend.setTorrentShareRatio("hash-1", ratioLimit = -1.0).getOrThrow()
+
+        val setCalls = bodies.filter { it.contains("torrent-set") }
+        assertTrue(setCalls[0].contains("\"seedRatioMode\":1"))
+        assertTrue(setCalls[0].contains("\"seedRatioLimit\":2.0"))
+        assertTrue(setCalls[1].contains("\"seedRatioMode\":2"))
+    }
+
+    @Test
+    fun `rpc error result is not replayed against other candidate urls`() = runBlocking {
+        val failing = AtomicBoolean(false)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return if (failing.get()) {
+                    MockResponse()
+                        .setResponseCode(200)
+                        .setBody("""{"result":"duplicate torrent","arguments":{}}""")
+                } else {
+                    MockResponse().setResponseCode(200).setBody(SESSION_GET_BODY)
+                }
+            }
+        }
+        val backend = TransmissionBackend()
+        backend.connect(testSettings()).getOrThrow()
+        val requestsBeforeFailure = server.requestCount
+        failing.set(true)
+
+        val result = backend.deleteTorrent("hash-1", deleteFiles = true)
+
+        assertTrue(result.isFailure)
+        val error = result.exceptionOrNull()!!
+        assertTrue(error !is BackendConnectionError.RpcPathNotFound)
+        assertTrue(error.message!!.contains("duplicate torrent"))
+        assertEquals(requestsBeforeFailure + 1, server.requestCount)
+    }
+
+    @Test
     fun `rpc path falls back to next candidate and promotes it, all misses map to RpcPathNotFound`() = runBlocking {
         val allNotFound = AtomicBoolean(false)
         server.dispatcher = object : Dispatcher() {

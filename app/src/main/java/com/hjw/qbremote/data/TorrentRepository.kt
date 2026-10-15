@@ -1,10 +1,12 @@
 package com.hjw.qbremote.data
 
+import kotlinx.coroutines.withTimeoutOrNull
 import com.hjw.qbremote.data.model.AddTorrentRequest
 import com.hjw.qbremote.data.model.CountryPeerSnapshot
 import com.hjw.qbremote.data.model.DashboardData
 import com.hjw.qbremote.data.model.TorrentDetailData
 import com.hjw.qbremote.data.model.TorrentTracker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -62,6 +64,7 @@ class TorrentRepository {
         force: Boolean = false,
     ): Result<Unit> {
         require(profileId.isNotBlank()) { "Profile id cannot be blank." }
+        storedPasswordUnreadableError(settings)?.let { return Result.failure(it) }
         var reusableSession = false
         val entry = mutex.withLock {
             val existing = sessions[profileId]
@@ -149,8 +152,26 @@ class TorrentRepository {
     suspend fun fetchDashboard() = withBackend { fetchDashboard() }
     suspend fun fetchDashboard(profileId: String) = withBackend(profileId) { fetchDashboard() }
 
+    /** One-shot fetch on a throwaway session; for callers with no live repository (background worker). */
     suspend fun fetchDashboardSnapshot(settings: ConnectionSettings): Result<DashboardSnapshotFetchResult> {
+        storedPasswordUnreadableError(settings)?.let { return Result.failure(it) }
         return createBackend(settings.serverBackendType).fetchDashboardSnapshot(settings)
+    }
+
+    /** Fetch through the profile's persistent session, logging in only if it is not already live. */
+    suspend fun fetchDashboardSnapshot(
+        profileId: String,
+        settings: ConnectionSettings,
+    ): Result<DashboardSnapshotFetchResult> {
+        return runCatching {
+            connect(profileId, settings).getOrThrow()
+            DashboardSnapshotFetchResult(
+                serverVersion = fetchServerVersion(profileId).getOrElse { "-" },
+                dashboardData = fetchDashboard(profileId).getOrThrow(),
+            )
+        }.onFailure { error ->
+            if (error !is CancellationException) markDisconnected(profileId)
+        }
     }
 
     suspend fun pauseTorrent(hash: String) = withBackend { pauseTorrent(hash) }
@@ -203,24 +224,6 @@ class TorrentRepository {
     suspend fun fetchCountryPeerSnapshots(profileId: String, hashes: List<String>) =
         withBackend(profileId) { fetchCountryPeerSnapshots(hashes) }
 
-    suspend fun fetchCountryPeerSnapshots(
-        settings: ConnectionSettings,
-        hashes: List<String>,
-    ): Result<List<CountryPeerSnapshot>> {
-        if (!capabilitiesFor(settings).supportsCountryDistribution) {
-            return Result.success(emptyList())
-        }
-        return when (settings.serverBackendType) {
-            ServerBackendType.QBITTORRENT -> runCatching {
-                val temp = QbRepository()
-                temp.connect(settings).getOrThrow()
-                temp.fetchCountryPeerSnapshots(hashes).getOrThrow()
-            }
-
-            ServerBackendType.TRANSMISSION -> Result.success(emptyList())
-        }
-    }
-
     suspend fun renameTorrent(hash: String, name: String) = withBackend { renameTorrent(hash, name) }
     suspend fun renameTorrent(profileId: String, hash: String, name: String) =
         withBackend(profileId) { renameTorrent(hash, name) }
@@ -257,6 +260,15 @@ class TorrentRepository {
     suspend fun setTorrentShareRatio(profileId: String, hash: String, ratioLimit: Double) =
         withBackend(profileId) { setTorrentShareRatio(hash, ratioLimit) }
 
+    suspend fun fetchTorrentPeers(profileId: String, hash: String) =
+        withBackend(profileId) { fetchTorrentPeers(hash) }
+    suspend fun setFilePriority(
+        profileId: String,
+        hash: String,
+        fileIndexes: List<Int>,
+        priority: com.hjw.qbremote.data.model.FilePriority,
+    ) = withBackend(profileId) { setFilePriority(hash, fileIndexes, priority) }
+
     suspend fun addTorrent(request: AddTorrentRequest) = withBackend { addTorrent(request) }
     suspend fun addTorrent(profileId: String, request: AddTorrentRequest) =
         withBackend(profileId) { addTorrent(request) }
@@ -274,10 +286,36 @@ class TorrentRepository {
             ?: throw IllegalStateException("Server session is not connected.")
     }
 
+    // Fail fast instead of logging in with "": an empty-password login would fail
+    // with a misleading "wrong password" and repeated attempts can trip qB's IP ban.
+    private fun storedPasswordUnreadableError(settings: ConnectionSettings): Throwable? {
+        if (!settings.passwordUnreadable || settings.password.isNotEmpty()) return null
+        return BackendConnectionError.StoredPasswordUnreadable(settings.serverBackendType)
+    }
+
+    /** Logs in on a throwaway session and returns the server version (settings form "Test"). */
+    suspend fun testConnection(settings: ConnectionSettings): Result<String> {
+        storedPasswordUnreadableError(settings)?.let { return Result.failure(it) }
+        val backend = createBackend(settings.serverBackendType)
+        return try {
+            // A test should answer quickly: the normal connect path retries every
+            // candidate URL with 8 s timeouts, which made an unreachable host take ~30 s.
+            withTimeoutOrNull(CONNECTION_TEST_TIMEOUT_MS) {
+                backend.connect(settings).map { backend.fetchServerVersion().getOrElse { "-" } }
+            } ?: Result.failure(BackendConnectionError.TestTimedOut(CONNECTION_TEST_TIMEOUT_MS / 1000))
+        } finally {
+            backend.clearSession()
+        }
+    }
+
     private fun createBackend(type: ServerBackendType): TorrentBackend {
         return when (type) {
             ServerBackendType.QBITTORRENT -> QbRepository()
             ServerBackendType.TRANSMISSION -> TransmissionBackend()
         }
+    }
+
+    private companion object {
+        const val CONNECTION_TEST_TIMEOUT_MS = 12_000L
     }
 }

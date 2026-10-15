@@ -37,6 +37,7 @@ internal fun LazyListScope.torrentDetailPageContent(
     onCopyTracker: (TorrentTracker) -> Unit,
     onEditTracker: (String, TorrentTracker, String) -> Unit,
     onDeleteTracker: (String, TorrentTracker) -> Unit,
+    onSetFilePriority: (String, List<Int>, com.hjw.qbremote.data.model.FilePriority) -> Unit,
 ) {
     val torrent = selectedTorrent
     if (torrent == null) {
@@ -74,6 +75,7 @@ internal fun LazyListScope.torrentDetailPageContent(
                 detailProperties = if (state.detailHash == targetHash) state.detailProperties else null,
                 detailFiles = if (state.detailHash == targetHash) state.detailFiles else emptyList(),
                 detailTrackers = if (state.detailHash == targetHash) state.detailTrackers else emptyList(),
+                detailPeers = if (state.detailHash == targetHash) state.detailPeers else emptyList(),
                 magnetUri = buildMagnetUri(
                     hash = targetHash,
                     name = torrent.name,
@@ -104,6 +106,7 @@ internal fun LazyListScope.torrentDetailPageContent(
                 onCopyTracker = onCopyTracker,
                 onEditTracker = { tracker, newUrl -> onEditTracker(targetHash, tracker, newUrl) },
                 onDeleteTracker = { tracker -> onDeleteTracker(targetHash, tracker) },
+                onSetFilePriority = { indexes, priority -> onSetFilePriority(targetHash, indexes, priority) },
             )
         }
     }

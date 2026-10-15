@@ -69,7 +69,29 @@ class SecureCredentialStore(context: Context) {
         return "${VALUE_PREFIX}${Base64.encodeToString(payload, Base64.NO_WRAP)}"
     }
 
-    private fun decryptStoredValue(storedValue: String?): String {
+    /**
+     * True when a password is stored for [profileId] (or the global fallback) but
+     * none of it can be decrypted, e.g. the Keystore key was invalidated by a
+     * restore or security change. Reads then resolve to "", which must not be
+     * mistaken for "no password set".
+     */
+    fun hasUnreadablePassword(profileId: String): Boolean {
+        val profileValue = if (profileId.isBlank()) {
+            ""
+        } else {
+            decryptStoredValueOrNull(prefs.getString(profilePasswordKey(profileId), null))
+        }
+        val globalValue = decryptStoredValueOrNull(prefs.getString(KEY_PASSWORD, null))
+        val resolved = profileValue.orEmpty().ifBlank { globalValue.orEmpty() }
+        if (resolved.isNotEmpty()) return false
+        return profileValue == null || globalValue == null
+    }
+
+    private fun decryptStoredValue(storedValue: String?): String =
+        decryptStoredValueOrNull(storedValue).orEmpty()
+
+    /** "" when nothing is stored, null when a stored value can't be decrypted. */
+    private fun decryptStoredValueOrNull(storedValue: String?): String? {
         val encoded = storedValue?.trim().orEmpty()
         if (encoded.isEmpty()) return ""
         return runCatching {
@@ -89,7 +111,7 @@ class SecureCredentialStore(context: Context) {
                 GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv),
             )
             cipher.doFinal(encryptedBytes).toString(Charsets.UTF_8)
-        }.getOrDefault("")
+        }.getOrNull()
     }
 
     private fun getOrCreateSecretKey(): SecretKey {

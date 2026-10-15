@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch window / splash background. Must match the Compose background
+         (QbLightColors.background) so the first frame doesn't flash. -->
+    <color name="qb_launch_background">#F3F8FC</color>
+    <!-- Pre-API-29 navigation bar scrim (same values androidx.activity used). -->
+    <color name="qb_nav_bar_scrim">#E6FFFFFF</color>
+</resources>

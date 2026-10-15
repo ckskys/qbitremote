@@ -204,6 +204,14 @@ interface QbApi {
     ): Response<Unit>
 
     @FormUrlEncoded
+    @POST("api/v2/torrents/filePrio")
+    suspend fun setFilePriority(
+        @Field("hash") hash: String,
+        @Field("id") ids: String,
+        @Field("priority") priority: Int,
+    ): Response<Unit>
+
+    @FormUrlEncoded
     @POST("api/v2/torrents/setShareLimits")
     suspend fun setShareLimits(
         @Field("hashes") hashes: String,

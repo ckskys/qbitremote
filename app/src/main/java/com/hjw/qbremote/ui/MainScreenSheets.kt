@@ -14,7 +14,7 @@ import com.hjw.qbremote.data.ServerCapabilities
 import com.hjw.qbremote.data.ServerDashboardPreferences
 import com.hjw.qbremote.data.ServerProfile
 import com.hjw.qbremote.data.model.AddTorrentFile
-import com.hjw.qbremote.ui.theme.qbGlassStrongContainerColor
+import com.hjw.qbremote.ui.theme.qbGlassSheetColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +48,16 @@ internal fun MainScreenSheets(
         refreshSeconds: String,
     ) -> Unit,
     onRequestDeleteServerProfile: (String) -> Unit,
+    onTestServerConnection: (
+        editingProfileId: String?,
+        backendType: ServerBackendType,
+        host: String,
+        port: String,
+        useHttps: Boolean,
+        username: String,
+        password: String,
+        onResult: (Boolean, String) -> Unit,
+    ) -> Unit,
     showAddTorrentSheet: Boolean,
     addTorrentSheetState: SheetState,
     addTorrentCapabilities: ServerCapabilities,
@@ -84,11 +94,13 @@ internal fun MainScreenSheets(
         ModalBottomSheet(
             onDismissRequest = onDismissServerProfileSheet,
             sheetState = serverProfileSheetState,
-            containerColor = qbGlassStrongContainerColor(),
+            containerColor = qbGlassSheetColor(),
             shape = PanelShape,
-            windowInsets = WindowInsets.safeDrawing.only(
-                WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
-            ),
+            contentWindowInsets = {
+                WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+                )
+            },
         ) {
             ServerProfileSheet(
                 profiles = serverProfiles,
@@ -99,6 +111,7 @@ internal fun MainScreenSheets(
                 onUpdateProfile = onUpdateServerProfile,
                 onRequestDeleteProfile = onRequestDeleteServerProfile,
                 onCancel = onDismissServerProfileSheet,
+                onTestConnection = onTestServerConnection,
             )
         }
     }
@@ -107,11 +120,13 @@ internal fun MainScreenSheets(
         ModalBottomSheet(
             onDismissRequest = onDismissAddTorrentSheet,
             sheetState = addTorrentSheetState,
-            containerColor = qbGlassStrongContainerColor(),
+            containerColor = qbGlassSheetColor(),
             shape = PanelShape,
-            windowInsets = WindowInsets.safeDrawing.only(
-                WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
-            ),
+            contentWindowInsets = {
+                WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+                )
+            },
         ) {
             AddTorrentSheet(
                 context = LocalContext.current,
@@ -130,11 +145,13 @@ internal fun MainScreenSheets(
         ModalBottomSheet(
             onDismissRequest = onDismissCardManagerSheet,
             sheetState = dashboardCardManagerSheetState,
-            containerColor = qbGlassStrongContainerColor(),
+            containerColor = qbGlassSheetColor(),
             shape = PanelShape,
-            windowInsets = WindowInsets.safeDrawing.only(
-                WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
-            ),
+            contentWindowInsets = {
+                WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+                )
+            },
         ) {
             ServerDashboardCardManagerSheet(
                 availableCards = availableDashboardCards,

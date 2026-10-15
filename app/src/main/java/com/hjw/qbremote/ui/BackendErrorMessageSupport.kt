@@ -3,22 +3,51 @@ package com.hjw.qbremote.ui
 import com.hjw.qbremote.data.BackendConnectionError
 import com.hjw.qbremote.data.ServerBackendType
 
-internal fun userFacingConnectionMessage(error: Throwable): String {
+/**
+ * Readable connection error. These strings travel as plain Strings (snapshots,
+ * callbacks), so the language follows the current locale here; they used to be
+ * Chinese-only, which showed up mixed into the English UI.
+ */
+internal fun userFacingConnectionMessage(
+    error: Throwable,
+    chinese: Boolean = java.util.Locale.getDefault().language == "zh",
+): String {
+    fun t(zh: String, en: String) = if (chinese) zh else en
     return when (error) {
-        is BackendConnectionError.WrongBackend -> {
-            "服务器类型不匹配，目标看起来是 ${backendDisplayName(error.detected)}。"
-        }
+        is BackendConnectionError.WrongBackend -> t(
+            "服务器类型不匹配，目标看起来是 ${backendDisplayName(error.detected)}。",
+            "Server type mismatch: the target looks like ${backendDisplayName(error.detected)}.",
+        )
 
         is BackendConnectionError.RpcPathNotFound -> {
-            if (error.failureSummary.isBlank()) {
-                "Transmission RPC 路径未找到。"
-            } else {
-                "Transmission RPC 路径未找到。${error.failureSummary}"
-            }
+            val base = t("Transmission RPC 路径未找到。", "Transmission RPC path not found.")
+            if (error.failureSummary.isBlank()) base else "$base ${error.failureSummary}"
         }
 
-        is BackendConnectionError.AuthFailed -> "${backendDisplayName(error.backendType)} 认证失败。"
-        else -> error.message?.takeIf { it.isNotBlank() } ?: "刷新失败"
+        is BackendConnectionError.AuthFailed -> t(
+            "${backendDisplayName(error.backendType)} 认证失败。",
+            "${backendDisplayName(error.backendType)} authentication failed.",
+        )
+        is BackendConnectionError.TestTimedOut -> t(
+            "连接超时：${error.seconds} 秒内没有响应，请检查地址、端口和 HTTPS 设置。",
+            "Timed out: no response within ${error.seconds} s. Check the host, port and HTTPS setting.",
+        )
+        is BackendConnectionError.StoredPasswordUnreadable -> t(
+            "${backendDisplayName(error.backendType)} 保存的密码无法读取（可能是系统密钥已重置），请在服务器设置中重新输入密码。",
+            "The saved ${backendDisplayName(error.backendType)} password can't be read (the device key may have been reset). Re-enter it in the server settings.",
+        )
+        is BackendConnectionError.HttpsMismatch -> if (error.usedHttps) {
+            t(
+                "${backendDisplayName(error.backendType)} 服务器在这个端口上没有启用 HTTPS，请在服务器设置中关闭 HTTPS。",
+                "The ${backendDisplayName(error.backendType)} server doesn't use HTTPS on this port. Turn HTTPS off in the server settings.",
+            )
+        } else {
+            t(
+                "${backendDisplayName(error.backendType)} 服务器要求使用 HTTPS，请在服务器设置中打开 HTTPS。",
+                "The ${backendDisplayName(error.backendType)} server requires HTTPS. Turn HTTPS on in the server settings.",
+            )
+        }
+        else -> error.message?.takeIf { it.isNotBlank() } ?: t("刷新失败", "Refresh failed")
     }
 }
 

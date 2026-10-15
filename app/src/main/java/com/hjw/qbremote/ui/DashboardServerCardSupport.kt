@@ -3,6 +3,7 @@ package com.hjw.qbremote.ui
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.hjw.qbremote.data.CachedDashboardServerSnapshot
 import com.hjw.qbremote.data.model.TorrentInfo
 
 internal data class DashboardStateSummary(
@@ -49,6 +50,22 @@ internal fun shouldSuppressServerCardClick(
     return currentTimeMillis - lastDragFinishedAt <= suppressionWindowMs
 }
 
+internal enum class ServerSnapshotStatus { LIVE, CACHED_OFFLINE, CONNECTING, UNREACHABLE }
+
+/**
+ * "Cached offline" only when there is cached data to show. A server that has never
+ * delivered a snapshot is "connecting" until its first attempt fails, then
+ * "unreachable" (it used to say "cached offline" with nothing cached).
+ */
+internal fun resolveServerSnapshotStatus(snapshot: CachedDashboardServerSnapshot): ServerSnapshotStatus {
+    return when {
+        !snapshot.isStale -> ServerSnapshotStatus.LIVE
+        snapshot.lastUpdatedAt > 0L -> ServerSnapshotStatus.CACHED_OFFLINE
+        snapshot.errorMessage.isBlank() -> ServerSnapshotStatus.CONNECTING
+        else -> ServerSnapshotStatus.UNREACHABLE
+    }
+}
+
 internal data class WalletServerStackCardPresentation(
     val showExpandedLayout: Boolean,
     val horizontalPadding: Dp,
@@ -61,7 +78,10 @@ internal fun resolveWalletServerStackCardPresentation(
     isDragging: Boolean,
     isSettling: Boolean,
 ): WalletServerStackCardPresentation {
-    val showExpandedLayout = selected || isDragging || isSettling
+    // Expanded only for the (projected) front card. A dragged/settling card used to
+    // expand too, but a tall lifted card covers every collapsed sibling it passes
+    // and then has to snap back to a header at drop time.
+    val showExpandedLayout = selected
     return WalletServerStackCardPresentation(
         showExpandedLayout = showExpandedLayout,
         horizontalPadding = if (showExpandedLayout) 16.dp else 15.dp,

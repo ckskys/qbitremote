@@ -16,4 +16,4 @@ enum class DashboardChartCard(
     SHARE_RATIO_DISTRIBUTION("share_ratio_distribution"),
 }
 
-val PanelShape = RoundedCornerShape(20.dp)
+val PanelShape = RoundedCornerShape(16.dp)

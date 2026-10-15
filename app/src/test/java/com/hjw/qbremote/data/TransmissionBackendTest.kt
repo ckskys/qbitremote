@@ -130,6 +130,22 @@ class TransmissionBackendTest {
     }
 
     @Test
+    fun transmissionRatioLimit_mapsSeedRatioModeToQbEncoding() {
+        assertEquals(-2.0, transmissionRatioLimitToQbEncoding(seedRatioMode = 0, seedRatioLimit = 3.0))
+        assertEquals(1.5, transmissionRatioLimitToQbEncoding(seedRatioMode = 1, seedRatioLimit = 1.5))
+        assertEquals(-1.0, transmissionRatioLimitToQbEncoding(seedRatioMode = 2, seedRatioLimit = 3.0))
+        assertEquals(null, transmissionRatioLimitToQbEncoding(seedRatioMode = null, seedRatioLimit = null))
+    }
+
+    @Test
+    fun transmissionDashboardFields_includeRatioLimitFields() {
+        val fields = transmissionDashboardFields()
+
+        assertTrue(fields.contains("seedRatioMode"))
+        assertTrue(fields.contains("seedRatioLimit"))
+    }
+
+    @Test
     fun resolveTransmissionPrimaryTracker_usesFirstTrackerListEntry() {
         assertEquals(
             "udp://tracker.example.com:80/announce",

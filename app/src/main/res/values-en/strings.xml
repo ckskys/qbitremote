@@ -6,7 +6,6 @@
     <string name="notification_torrent_completed_detail">%1$s: %2$s finished downloading</string>
 
     <string name="menu_settings">Settings</string>
-    <string name="menu_servers">Servers</string>
     <string name="menu_theme">Theme</string>
     <string name="brand_qbittorrent">qBittorrent</string>
     <string name="backend_qbittorrent">qBittorrent</string>
@@ -55,7 +54,6 @@
     <string name="connecting">Connecting…</string>
 
     <string name="refresh">Refresh</string>
-    <string name="refreshing">Refreshing…</string>
     <string name="global_down_fmt">Download speed: %1$s</string>
     <string name="global_up_fmt">Upload speed: %1$s</string>
     <string name="global_total_down_fmt">Total download: %1$s</string>
@@ -123,7 +121,6 @@
     <string name="delete_torrent_desc">Delete torrent and optionally local files.</string>
 
     <string name="torrent_detail_not_found">Torrent details not found.</string>
-    <string name="detail_section_basic">Basic Info</string>
     <string name="detail_hash_label">Torrent Hash</string>
     <string name="detail_magnet_label">Magnet Link</string>
     <string name="detail_export_torrent">Export Torrent</string>
@@ -208,7 +205,7 @@
     <string name="server_save_action">Save</string>
     <string name="server_name_optional_label">Server name (optional)</string>
     <string name="server_password_preserve_hint">Leave blank to keep the current password</string>
-    <string name="server_profile_active">Connected</string>
+    <string name="server_profile_active">Current server</string>
     <string name="server_profile_saved">Saved</string>
     <string name="server_profile_tap_to_connect">Tap to switch</string>
     <string name="server_delete_title">Delete server</string>
@@ -228,6 +225,8 @@
     <string name="server_stack_reorder_hint">Long-press a card to reorder it</string>
     <string name="server_snapshot_live_state">Live</string>
     <string name="server_snapshot_stale_state">Cached offline</string>
+    <string name="server_snapshot_connecting_state">Connecting…</string>
+    <string name="server_snapshot_unreachable_state">Unreachable</string>
     <string name="dashboard_swipe_hint">Swipe left on the overview card to edit or delete</string>
     <string name="dashboard_chart_reorder_hint">Long-press chart cards to reorder them. Restore hidden cards in card management.</string>
     <string name="dashboard_manage_cards_title">Card Management</string>
@@ -285,7 +284,7 @@
     <string name="detail_upload_kb_label">Upload KB/s</string>
     <string name="detail_action_apply">Apply</string>
     <string name="detail_section_ratio">Share ratio</string>
-    <string name="detail_ratio_label">Ratio</string>
+    <string name="detail_ratio_label">Ratio limit (-1 = unlimited)</string>
     <plurals name="detail_tracker_count">
         <item quantity="one">%1$d tracker</item>
         <item quantity="other">%1$d trackers</item>
@@ -336,4 +335,24 @@
     <string name="limit_value_fmt">Limit %1$s</string>
     <string name="total_value_fmt">Total %1$s</string>
     <string name="limit_unlimited">Unlimited</string>
+    <string name="torrent_selection_count">%1$d selected</string>
+    <string name="select_all">Select all</string>
+    <string name="delete_torrents_title_fmt">Delete %1$d torrents</string>
+    <string name="exit_selection">Exit selection</string>
+    <string name="active_just_now">just now</string>
+    <string name="server_test_connection">Test</string>
+    <string name="server_test_running">Testing connection…</string>
+    <string name="server_test_success_fmt">Connected. Server version %1$s</string>
+    <string name="detail_peers_connected_fmt">%1$d connected peers</string>
+    <string name="detail_peers_empty">No connected peers</string>
+    <string name="file_priority_skip">Skip</string>
+    <string name="file_priority_normal">Normal</string>
+    <string name="file_priority_high">High</string>
+    <string name="file_priority_mixed">Mixed</string>
+    <string name="chart_time_now">now</string>
+    <string name="torrent_row_ratio_fmt">Ratio %1$s</string>
+    <string name="torrent_row_eta_fmt">%1$s left</string>
+    <string name="detail_stat_upload">Upload</string>
+    <string name="detail_stat_download">Download</string>
+    <string name="detail_stat_size">Size</string>
 </resources>

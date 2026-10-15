@@ -83,23 +83,28 @@ fun WorldMapChart(
     val colorScheme = MaterialTheme.colorScheme
     val isLightTheme = colorScheme.background.luminance() > 0.5f
     val defaultFill = if (isLightTheme) {
-        Color(0xFFD3DCE6)
+        Color(0xFFE3E6EA)
     } else {
-        Color(0xFF2B3948)
+        Color(0xFF1F242B)
     }
     val strokeColor = if (isLightTheme) {
-        Color(0xFF7A8796)
+        Color(0xFFC3C9D1)
     } else {
-        Color(0xFF6F8194)
+        Color(0xFF353C46)
     }
     val countryColors = remember(merged, maxUploaded, isLightTheme) {
+        val ranked = merged.sortedByDescending { it.uploadedBytes }
         buildMap {
-            merged.forEach { record ->
+            ranked.forEachIndexed { rank, record ->
                 val code = normalizeCountryCodeForDisplay(record.countryCode)
-                if (code.isBlank()) return@forEach
-                val progress = (record.uploadedBytes.toFloat() / maxUploaded.toFloat()).coerceIn(0f, 1f)
+                if (code.isBlank()) return@forEachIndexed
                 val color = heatColor(
-                    progress = 0.22f + (progress * 0.78f),
+                    progress = countryHeatProgress(
+                        uploadedBytes = record.uploadedBytes,
+                        maxUploaded = maxUploaded,
+                        rank = rank,
+                        count = ranked.size,
+                    ),
                     isLightTheme = isLightTheme,
                 )
                 put(code, color)
@@ -220,14 +225,37 @@ private fun parseWorldMapSvg(svg: String): ParsedWorldMap {
     )
 }
 
+/**
+ * 0..1 heat for a country. Half linear share of the top country, half rank: with
+ * a purely linear scale, countries with similar traffic (54/48/41 MB) all came out
+ * the same shade and the map read as one flat color.
+ */
+internal fun countryHeatProgress(uploadedBytes: Long, maxUploaded: Long, rank: Int, count: Int): Float {
+    val linear = if (maxUploaded > 0L) {
+        (uploadedBytes.toFloat() / maxUploaded.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val byRank = if (count <= 1) 1f else 1f - rank.toFloat() / (count - 1).toFloat()
+    return (0.5f * linear + 0.5f * byRank).coerceIn(0f, 1f)
+}
+
 private fun heatColor(progress: Float, isLightTheme: Boolean): Color {
     val clamped = progress.coerceIn(0f, 1f)
-    val low = if (isLightTheme) Color(0xFFA8C7F0) else Color(0xFF3D5D82)
-    val high = if (isLightTheme) Color(0xFF1E63BF) else Color(0xFF65A7FF)
+    // Three stops spanning a much wider range than the old two similar blues.
+    // Single hue (the accent), light to bright, so the map reads as one quantity.
+    val low = if (isLightTheme) Color(0xFFCDEDE9) else Color(0xFF1D3A3A)
+    val mid = if (isLightTheme) Color(0xFF5FBFB5) else Color(0xFF2F8C83)
+    val high = if (isLightTheme) Color(0xFF0B6E65) else Color(0xFF9BEAE1)
+    val (start, end, fraction) = if (clamped < 0.5f) {
+        Triple(low, mid, clamped * 2f)
+    } else {
+        Triple(mid, high, (clamped - 0.5f) * 2f)
+    }
     return Color(
-        red = lerpChannel(low.red, high.red, clamped),
-        green = lerpChannel(low.green, high.green, clamped),
-        blue = lerpChannel(low.blue, high.blue, clamped),
+        red = lerpChannel(start.red, end.red, fraction),
+        green = lerpChannel(start.green, end.green, fraction),
+        blue = lerpChannel(start.blue, end.blue, fraction),
         alpha = 1f,
     )
 }

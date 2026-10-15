@@ -84,6 +84,7 @@ internal data class MainUiState(
     val detailProperties: TorrentProperties? = null,
     val detailFiles: List<TorrentFileInfo> = emptyList(),
     val detailTrackers: List<TorrentTracker> = emptyList(),
+    val detailPeers: List<com.hjw.qbremote.data.model.TorrentPeer> = emptyList(),
     val categoryOptions: List<String> = emptyList(),
     val tagOptions: List<String> = emptyList(),
     val dailyTagUploadDate: String = "",
@@ -139,3 +140,5 @@ internal data class DashboardStatsRefreshInput(
     val torrents: List<TorrentInfo>,
     val baseSnapshot: CachedDashboardServerSnapshot,
 )
+
+internal enum class BatchTorrentAction { PAUSE, RESUME, DELETE }

@@ -37,6 +37,10 @@ data class TorrentInfo(
     @SerializedName("save_path") val savePath: String = "",
     @SerializedName("tags") val tags: String = "",
     @SerializedName("magnet_uri") val magnetUri: String = "",
+    // Share-ratio limit, qB encoding: -2 = use global, -1 = unlimited, >= 0 = limit.
+    // Nullable because Gson skips Kotlin defaults: snapshots cached before this
+    // field existed must read as "unknown", not as a 0.0 limit.
+    @SerializedName("ratio_limit") val ratioLimit: Double? = null,
 )
 
 data class DashboardData(
@@ -88,6 +92,38 @@ data class TorrentFileInfo(
     @SerializedName("progress") val progress: Float = 0f,
     @SerializedName("priority") val priority: Int = 0,
 )
+
+/** One connected peer of a torrent (detail page "Peers" tab). */
+data class TorrentPeer(
+    val address: String = "",
+    val client: String = "",
+    val countryCode: String = "",
+    val progress: Float = 0f,
+    val downloadSpeed: Long = 0,
+    val uploadSpeed: Long = 0,
+    val downloaded: Long = 0,
+    val uploaded: Long = 0,
+    val flags: String = "",
+)
+
+/**
+ * File download priority. [qbValue] is qBittorrent's encoding, which
+ * TorrentFileInfo.priority also uses for both backends.
+ */
+enum class FilePriority(val qbValue: Int) {
+    SKIP(0),
+    NORMAL(1),
+    HIGH(6),
+    ;
+
+    companion object {
+        fun fromQbValue(value: Int): FilePriority = when {
+            value <= 0 -> SKIP
+            value >= 6 -> HIGH
+            else -> NORMAL
+        }
+    }
+}
 
 data class TorrentTracker(
     val backendTrackerId: Int = -1,

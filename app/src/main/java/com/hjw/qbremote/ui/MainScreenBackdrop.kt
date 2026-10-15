@@ -1,5 +1,6 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -16,22 +17,8 @@ import androidx.compose.ui.unit.dp
 import com.hjw.qbremote.data.AppTheme
 import kotlin.math.roundToInt
 
-private val DarkBackgroundGradient = Brush.verticalGradient(
-    colors = listOf(
-        Color(0xFF060A12),
-        Color(0xFF0B1422),
-        Color(0xFF08131E),
-        Color(0xFF060A12),
-    ),
-)
-private val LightBackgroundGradient = Brush.verticalGradient(
-    colors = listOf(
-        Color(0xFFF5FAFF),
-        Color(0xFFEAF3FC),
-        Color(0xFFE4F0F9),
-        Color(0xFFF6FAFF),
-    ),
-)
+private val DarkBackgroundGradient = SolidColor(Color(0xFF0B0D10))
+private val LightBackgroundGradient = SolidColor(Color(0xFFF6F7F9))
 
 @Composable
 internal fun MainScreenBackdrop(

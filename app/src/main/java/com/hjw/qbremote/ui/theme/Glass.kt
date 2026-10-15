@@ -6,6 +6,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
+// Built-in themes use opaque tonal layers (card = surfaceContainer, raised element
+// = surfaceContainerHigh) and near-invisible hairlines instead of outlines; the
+// translucent "glass" values below apply only to the custom-background theme.
+private const val HAIRLINE_ALPHA = 0.06f
+
 @Composable
 fun qbGlassCardColors(): CardColors {
     return CardDefaults.outlinedCardColors(
@@ -18,7 +23,7 @@ fun qbGlassContainerColor(): Color {
     val colorScheme = MaterialTheme.colorScheme
     val themeState = LocalQbThemeState.current
     if (!themeState.isCustomTheme) {
-        return colorScheme.surfaceContainerHigh.copy(alpha = 0.86f)
+        return colorScheme.surfaceContainer
     }
     return if (themeState.customBackgroundToneIsLight) {
         colorScheme.surfaceContainerHigh.copy(alpha = 0.62f)
@@ -32,7 +37,7 @@ fun qbGlassStrongContainerColor(): Color {
     val colorScheme = MaterialTheme.colorScheme
     val themeState = LocalQbThemeState.current
     if (!themeState.isCustomTheme) {
-        return colorScheme.surfaceContainerHigh.copy(alpha = 0.95f)
+        return colorScheme.surfaceContainerHigh
     }
     return if (themeState.customBackgroundToneIsLight) {
         colorScheme.surfaceContainerHighest.copy(alpha = 0.72f)
@@ -41,12 +46,27 @@ fun qbGlassStrongContainerColor(): Color {
     }
 }
 
+/**
+ * Bottom sheets hold forms and lists over a busy dashboard, so they stay opaque in
+ * the built-in themes: at 95% alpha the bright server cards behind showed through
+ * the form fields. Custom-background themes keep a light glass effect.
+ */
+@Composable
+fun qbGlassSheetColor(): Color {
+    val colorScheme = MaterialTheme.colorScheme
+    val themeState = LocalQbThemeState.current
+    if (!themeState.isCustomTheme) {
+        return colorScheme.surfaceContainer
+    }
+    return colorScheme.surfaceContainerHighest.copy(alpha = 0.95f)
+}
+
 @Composable
 fun qbGlassSubtleContainerColor(): Color {
     val colorScheme = MaterialTheme.colorScheme
     val themeState = LocalQbThemeState.current
     if (!themeState.isCustomTheme) {
-        return colorScheme.surfaceContainer.copy(alpha = 0.85f)
+        return colorScheme.surfaceContainerHigh
     }
     return if (themeState.customBackgroundToneIsLight) {
         colorScheme.surfaceContainer.copy(alpha = 0.50f)
@@ -60,7 +80,7 @@ fun qbGlassHoleColor(): Color {
     val colorScheme = MaterialTheme.colorScheme
     val themeState = LocalQbThemeState.current
     if (!themeState.isCustomTheme) {
-        return colorScheme.surfaceContainerHigh.copy(alpha = 0.94f)
+        return colorScheme.surfaceContainer
     }
     return if (themeState.customBackgroundToneIsLight) {
         colorScheme.surfaceContainerHighest.copy(alpha = 0.78f)
@@ -74,7 +94,7 @@ fun qbGlassOutlineColor(defaultAlpha: Float = 0.45f): Color {
     val colorScheme = MaterialTheme.colorScheme
     val themeState = LocalQbThemeState.current
     if (!themeState.isCustomTheme) {
-        return colorScheme.outline.copy(alpha = defaultAlpha)
+        return colorScheme.onSurface.copy(alpha = HAIRLINE_ALPHA)
     }
     return if (themeState.customBackgroundToneIsLight) {
         colorScheme.outline.copy(alpha = 0.32f)
@@ -88,7 +108,7 @@ fun qbGlassChipColor(): Color {
     val colorScheme = MaterialTheme.colorScheme
     val themeState = LocalQbThemeState.current
     if (!themeState.isCustomTheme) {
-        return colorScheme.primaryContainer.copy(alpha = 0.72f)
+        return colorScheme.surfaceContainerHigh
     }
     return if (themeState.customBackgroundToneIsLight) {
         colorScheme.primaryContainer.copy(alpha = 0.44f)
@@ -102,7 +122,7 @@ fun qbGlassEmptyStateColor(): Color {
     val colorScheme = MaterialTheme.colorScheme
     val themeState = LocalQbThemeState.current
     if (!themeState.isCustomTheme) {
-        return colorScheme.surfaceContainer.copy(alpha = 0.44f)
+        return colorScheme.surfaceContainer
     }
     return if (themeState.customBackgroundToneIsLight) {
         colorScheme.surfaceContainer.copy(alpha = 0.26f)

@@ -1,5 +1,6 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.foundation.layout.Spacer
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -464,6 +465,16 @@ internal fun ServerProfileSheet(
     ) -> Unit,
     onRequestDeleteProfile: (String) -> Unit,
     onCancel: () -> Unit,
+    onTestConnection: (
+        editingProfileId: String?,
+        backendType: ServerBackendType,
+        host: String,
+        port: String,
+        useHttps: Boolean,
+        username: String,
+        password: String,
+        onResult: (Boolean, String) -> Unit,
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
 ) {
     var editingProfileId by remember(initialEditingProfileId, profiles) {
         mutableStateOf(
@@ -484,6 +495,8 @@ internal fun ServerProfileSheet(
     var password by remember { mutableStateOf("") }
     var passwordVisible by rememberSaveable(editingProfileId) { mutableStateOf(false) }
     var refreshSeconds by remember { mutableStateOf("5") }
+    var testRunning by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     val scrollState = rememberScrollState()
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
@@ -514,14 +527,33 @@ internal fun ServerProfileSheet(
             password = ""
             refreshSeconds = profile.refreshSeconds.toString()
         } else {
-            name = ""
-            backendType = ServerBackendType.QBITTORRENT
-            host = ""
-            port = defaultPort(backendType)
-            useHttps = false
-            username = defaultUsername(backendType)
-            password = ""
-            refreshSeconds = "5"
+            // Restore a half-filled "add" form if the sheet was dismissed earlier.
+            val draft = ServerFormDraftCache.draft
+            name = draft?.name.orEmpty()
+            backendType = draft?.backendType ?: ServerBackendType.QBITTORRENT
+            host = draft?.host.orEmpty()
+            port = draft?.port ?: defaultPort(backendType)
+            useHttps = draft?.useHttps ?: false
+            username = draft?.username ?: defaultUsername(backendType)
+            password = draft?.password.orEmpty()
+            refreshSeconds = draft?.refreshSeconds ?: "5"
+        }
+        testResult = null
+    }
+
+    // Keep the add-form draft in memory while it is being filled in.
+    LaunchedEffect(editingProfileId, name, backendType, host, port, useHttps, username, password, refreshSeconds) {
+        if (editingProfileId.isBlank()) {
+            ServerFormDraftCache.draft = ServerFormDraft(
+                name = name,
+                backendType = backendType,
+                host = host,
+                port = port,
+                useHttps = useHttps,
+                username = username,
+                password = password,
+                refreshSeconds = refreshSeconds,
+            ).takeIf { it.hasUserInput() }
         }
     }
 
@@ -802,16 +834,59 @@ internal fun ServerProfileSheet(
             )
         }
 
+        if (testRunning || testResult != null) {
+            val (success, message) = testResult ?: (true to "")
+            Text(
+                text = when {
+                    testRunning -> stringResource(R.string.server_test_running)
+                    success -> stringResource(R.string.server_test_success_fmt, message)
+                    else -> message
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = when {
+                    testRunning -> MaterialTheme.colorScheme.onSurfaceVariant
+                    success -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.error
+                },
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .bringIntoViewRequester(bringIntoViewRequester),
             horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
+            TextButton(
+                enabled = canSubmit && !testRunning,
+                onClick = {
+                    testRunning = true
+                    testResult = null
+                    onTestConnection(
+                        editingProfile?.id,
+                        backendType,
+                        host.trim(),
+                        port.trim(),
+                        useHttps,
+                        username.trim(),
+                        password,
+                    ) { success, message ->
+                        testRunning = false
+                        testResult = success to message
+                    }
+                },
+            ) {
+                Text(stringResource(R.string.server_test_connection))
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            TextButton(onClick = {
+                ServerFormDraftCache.draft = null
+                onCancel()
+            }) { Text(stringResource(R.string.cancel)) }
             TextButton(
                 enabled = canSubmit,
                 onClick = {
+                    ServerFormDraftCache.draft = null
                     if (editingProfile != null) {
                         onUpdateProfile(
                             editingProfile.id,
@@ -874,19 +949,23 @@ private fun BackendTypeOption(
         MaterialTheme.colorScheme.onSurface
     }
 
+    // onClick on the card itself (not a .clickable modifier) so the ripple is
+    // clipped to the rounded shape.
     OutlinedCard(
-        modifier = modifier
-            .heightIn(min = 52.dp)
-            .clickable(onClick = onClick),
+        onClick = onClick,
+        modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, borderColor),
         colors = CardDefaults.outlinedCardColors(
             containerColor = containerColor,
         ),
     ) {
+        // The min height lives on this centering Box, not on the card: card
+        // content is top-aligned, so a taller card left the label sitting high.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 52.dp)
                 .padding(horizontal = 10.dp, vertical = 9.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -934,4 +1013,22 @@ internal fun readDisplayName(context: Context, uri: Uri): String {
             if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex).orEmpty() else ""
         }.orEmpty()
     }.getOrDefault("")
+}
+
+/** Unsaved "add server" form contents; survives dismissing the sheet (in memory only). */
+internal data class ServerFormDraft(
+    val name: String,
+    val backendType: ServerBackendType,
+    val host: String,
+    val port: String,
+    val useHttps: Boolean,
+    val username: String,
+    val password: String,
+    val refreshSeconds: String,
+) {
+    fun hasUserInput(): Boolean = name.isNotBlank() || host.isNotBlank() || password.isNotEmpty()
+}
+
+internal object ServerFormDraftCache {
+    var draft: ServerFormDraft? = null
 }

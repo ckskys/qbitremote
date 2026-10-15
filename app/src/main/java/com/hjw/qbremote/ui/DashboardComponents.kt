@@ -1,6 +1,10 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import com.hjw.qbremote.ui.theme.QbNumberStyles
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.animation.core.animateFloatAsState
+import com.hjw.qbremote.ui.theme.QbTransferColors
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -194,8 +198,8 @@ fun InlineRealtimeSpeedChart(
         modifier = modifier,
         points = resolvedPoints,
         axisValues = axisValues,
-        uploadColor = Color(0xFFFF4B8B),
-        downloadColor = Color(0xFF5E7CFF),
+        uploadColor = QbTransferColors.Upload,
+        downloadColor = QbTransferColors.Download,
     )
 }
 
@@ -243,78 +247,60 @@ private fun RealtimeSpeedChart(
     uploadColor: Color,
     downloadColor: Color,
 ) {
-    val chartHeight = 168.dp
+    // Minimal chart: no frame, no axis column, two faint guides, area fill under
+    // each line; the scale is a single faint label in the corner.
+    val chartHeight = 132.dp
     val downloadValues = remember(points) { points.map { it.downloadSpeed.coerceAtLeast(0L) } }
     val uploadValues = remember(points) { points.map { it.uploadSpeed.coerceAtLeast(0L) } }
-    val gridColor = qbGlassOutlineColor(defaultAlpha = 0.14f)
-    val baselineColor = qbGlassOutlineColor(defaultAlpha = 0.18f)
+    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+    val axisMaxValue = axisValues.firstOrNull()?.coerceAtLeast(1L) ?: 1L
 
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(
-            modifier = Modifier
-                .widthIn(min = 74.dp)
-                .height(chartHeight)
-                .padding(top = 2.dp, end = 6.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.End,
-        ) {
-            axisValues.forEach { axisValue ->
-                Text(
-                    text = formatSpeed(axisValue),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    softWrap = false,
-                )
-            }
-        }
-
+    Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .weight(1f)
-                .height(chartHeight)
-                .background(
-                    color = qbGlassHoleColor(),
-                    shape = RoundedCornerShape(18.dp),
-                )
-                .border(
-                    width = 1.dp,
-                    color = qbGlassOutlineColor(defaultAlpha = 0.18f),
-                    shape = RoundedCornerShape(18.dp),
-                )
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .fillMaxWidth()
+                .height(chartHeight),
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val safeAxisMax = axisValues.firstOrNull()?.coerceAtLeast(1L)?.toFloat() ?: 1f
-                val dashEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                    intervals = floatArrayOf(12f, 10f),
-                    phase = 0f,
-                )
-
-                for (index in 0..3) {
-                    val y = size.height * (index / 3f)
+                val axisMax = axisMaxValue.toFloat()
+                listOf(1f / 3f, 2f / 3f).forEach { fraction ->
+                    val y = size.height * fraction
                     drawLine(
-                        color = if (index == 3) baselineColor else gridColor,
+                        color = gridColor,
                         start = Offset(0f, y),
                         end = Offset(size.width, y),
                         strokeWidth = 1.dp.toPx(),
-                        pathEffect = if (index == 3) null else dashEffect,
                     )
                 }
-
-                drawRealtimeSeriesLine(
-                    values = downloadValues,
-                    color = downloadColor,
-                    axisMax = safeAxisMax,
+                drawRealtimeSeriesLine(values = downloadValues, color = downloadColor, axisMax = axisMax)
+                drawRealtimeSeriesLine(values = uploadValues, color = uploadColor, axisMax = axisMax)
+            }
+            Text(
+                text = formatSpeed(axisMaxValue),
+                style = QbNumberStyles.small,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.align(Alignment.TopStart),
+            )
+        }
+        val spanMillis = if (points.size >= 2) points.last().timestamp - points.first().timestamp else 0L
+        if (spanMillis > 0L) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = formatChartSpan(spanMillis),
+                    style = QbNumberStyles.small,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
-                drawRealtimeSeriesLine(
-                    values = uploadValues,
-                    color = uploadColor,
-                    axisMax = safeAxisMax,
+                Text(
+                    text = stringResource(R.string.chart_time_now),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
             }
         }
@@ -359,10 +345,25 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRealtimeSeriesL
             )
         }
     }
+    // Soft area fill under the line, fading to transparent at the baseline.
+    val fillPath = Path().apply {
+        addPath(path)
+        lineTo(points.last().x, size.height)
+        lineTo(points.first().x, size.height)
+        close()
+    }
+    drawPath(
+        path = fillPath,
+        brush = Brush.verticalGradient(
+            colors = listOf(color.copy(alpha = 0.22f), color.copy(alpha = 0f)),
+            startY = 0f,
+            endY = size.height,
+        ),
+    )
     drawPath(
         path = path,
         color = color,
-        style = Stroke(width = 2.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
     )
 }
 
@@ -380,31 +381,48 @@ internal fun buildRealtimeAxisInputValues(
     }
 }
 
-private fun buildRealtimeAxisValues(values: List<Long>): List<Long> {
-    val axisMax = roundRealtimeAxisMax(values.maxOrNull()?.coerceAtLeast(1L) ?: 1L)
-    return listOf(
-        axisMax,
-        (axisMax * 2L) / 3L,
-        axisMax / 3L,
-        0L,
-    )
+/**
+ * Four ticks (top, 2/3, 1/3, 0) on round values *in the binary unit formatSpeed
+ * displays*. The old version rounded the max in decimal bytes (20,000,000), which
+ * showed as "19.07 MB/s" with thirds of 12.72 and 6.36.
+ */
+internal fun buildRealtimeAxisValues(values: List<Long>): List<Long> {
+    val maxValue = values.maxOrNull()?.coerceAtLeast(1L) ?: 1L
+    if (maxValue <= 3L) return listOf(3L, 2L, 1L, 0L)
+    val rawStepBytes = maxValue.toDouble() / 3.0
+    var unit = 1.0
+    while (rawStepBytes / unit >= 1024.0) unit *= 1024.0
+    var step = niceAxisStep(rawStepBytes / unit)
+    // Keep the top tick inside the unit so labels stay in one unit where possible.
+    if (step * 3.0 >= 1024.0) {
+        unit *= 1024.0
+        step = niceAxisStep(rawStepBytes / unit)
+    }
+    val stepBytes = (step * unit).toLong().coerceAtLeast(1L)
+    return listOf(stepBytes * 3L, stepBytes * 2L, stepBytes, 0L)
 }
 
-private fun roundRealtimeAxisMax(value: Long): Long {
-    if (value <= 3L) return 3L
-    var magnitude = 1L
-    while (magnitude <= Long.MAX_VALUE / 10L && magnitude * 10L < value) {
-        magnitude *= 10L
+/** Smallest of 1, 2, 2.5, 5 x 10^n that is >= [value]. */
+private fun niceAxisStep(value: Double): Double {
+    var magnitude = 1.0
+    while (magnitude > value) magnitude /= 10.0
+    while (magnitude * 10.0 <= value) magnitude *= 10.0
+    for (multiplier in doubleArrayOf(1.0, 2.0, 2.5, 5.0, 10.0)) {
+        if (multiplier * magnitude >= value) return multiplier * magnitude
     }
-    val normalized = value.toDouble() / magnitude.toDouble()
-    val rounded = when {
-        normalized <= 1.0 -> 1L
-        normalized <= 2.0 -> 2L
-        normalized <= 5.0 -> 5L
-        else -> 10L
-    }
-    return rounded * magnitude
+    return 10.0 * magnitude
 }
+
+/** "-5m" / "-45s" label for the left end of the realtime chart. */
+internal fun formatChartSpan(spanMillis: Long): String {
+    val seconds = (spanMillis / 1000L).coerceAtLeast(0L)
+    return when {
+        seconds >= 3600L -> "-${seconds / 3600L}h"
+        seconds >= 60L -> "-${seconds / 60L}m"
+        else -> "-${seconds}s"
+    }
+}
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -433,9 +451,9 @@ private fun DashboardCardHeader(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Medium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -683,12 +701,27 @@ internal fun DashboardSeedPieCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DashboardPieChart(
-                    entries = resolvedEntries,
-                    total = total,
-                    holeColor = qbGlassHoleColor(),
+                Box(
                     modifier = Modifier.size(132.dp),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    DashboardPieChart(
+                        entries = resolvedEntries,
+                        total = total,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Text(
+                        text = resolveDashboardLegendValueText(
+                            value = total,
+                            valueKind = entries.firstOrNull()?.valueKind ?: LegendValueKind.BYTES,
+                        ),
+                        style = QbNumberStyles.medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        modifier = Modifier.padding(horizontal = 22.dp),
+                    )
+                }
 
                 Column(
                     modifier = Modifier.weight(1f),
@@ -845,7 +878,7 @@ private fun DashboardHorizontalBarList(
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         entries.forEachIndexed { index, entry ->
             val fillRatio = (entry.value.toFloat() / maxValue).coerceIn(0f, 1f)
@@ -854,53 +887,50 @@ private fun DashboardHorizontalBarList(
             } else {
                 0f
             }
-            val primaryText = buildDashboardDensityPrimaryText(
-                label = entry.label,
-                valueText = entry.valueText,
-            )
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                DashboardCompactMetricRow(
-                    color = barColorProvider(index),
-                    primaryText = primaryText,
-                    shareText = null,
-                    shareColor = MaterialTheme.colorScheme.primary,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = entry.label,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = entry.valueText,
+                        style = QbNumberStyles.small,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(visibleFillRatio)
-                        .height(10.dp)
+                        .fillMaxWidth()
+                        .height(6.dp)
                         .background(
-                            color = barColorProvider(index).copy(alpha = 0.92f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
                             shape = RoundedCornerShape(999.dp),
                         ),
-                )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(visibleFillRatio)
+                            .fillMaxHeight()
+                            .background(
+                                color = barColorProvider(index).copy(alpha = 0.85f),
+                                shape = RoundedCornerShape(999.dp),
+                            ),
+                    )
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun DashboardCompactSummaryList(
-    entries: List<ResolvedDashboardBarEntry>,
-    barColorProvider: (Int) -> Color,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        entries.forEachIndexed { index, entry ->
-            DashboardCompactMetricRow(
-                color = barColorProvider(index),
-                primaryText = buildDashboardDensityPrimaryText(
-                    label = entry.label,
-                    valueText = entry.valueText,
-                ),
-                shareText = null,
-                shareColor = MaterialTheme.colorScheme.primary,
-            )
         }
     }
 }
@@ -919,7 +949,7 @@ private fun DashboardCompactMetricRow(
     ) {
         Box(
             modifier = Modifier
-                .size(9.dp)
+                .size(6.dp)
                 .background(color = color, shape = RoundedCornerShape(50)),
         )
         Text(
@@ -960,37 +990,40 @@ private fun buildDashboardDensityPrimaryText(
 private fun DashboardPieChart(
     entries: List<PieLegendEntry>,
     total: Long,
-    holeColor: Color,
     modifier: Modifier = Modifier,
 ) {
     Canvas(modifier = modifier) {
         val diameter = size.minDimension
+        // Draw the slices as a stroked ring rather than full wedges covered by a
+        // "hole" circle: the hole is translucent glass, so covered wedges showed
+        // through it as dark ghost slices.
+        val ringWidth = diameter * 0.10f
+        val ringDiameter = diameter - ringWidth
         val topLeft = Offset(
-            x = (size.width - diameter) / 2f,
-            y = (size.height - diameter) / 2f,
+            x = (size.width - ringDiameter) / 2f,
+            y = (size.height - ringDiameter) / 2f,
         )
-        val arcSize = Size(width = diameter, height = diameter)
+        val arcSize = Size(width = ringDiameter, height = ringDiameter)
+        val ringStroke = Stroke(width = ringWidth)
 
+        // Small gaps between slices read cleaner than touching wedges.
+        val visibleSlices = entries.count { it.value > 0L }
+        val gapAngle = if (visibleSlices > 1) 2.5f else 0f
         var startAngle = -90f
         entries.forEachIndexed { index, entry ->
             val sweepAngle = (entry.value.toFloat() / total.toFloat()) * 360f
             if (sweepAngle <= 0f) return@forEachIndexed
             drawArc(
                 color = DashboardPiePalette[index % DashboardPiePalette.size],
-                startAngle = startAngle,
-                sweepAngle = sweepAngle,
-                useCenter = true,
+                startAngle = startAngle + gapAngle / 2f,
+                sweepAngle = (sweepAngle - gapAngle).coerceAtLeast(0.5f),
+                useCenter = false,
                 topLeft = topLeft,
                 size = arcSize,
+                style = ringStroke,
             )
             startAngle += sweepAngle
         }
-
-        drawCircle(
-            color = holeColor,
-            radius = diameter * 0.30f,
-            center = Offset(size.width / 2f, size.height / 2f),
-        )
     }
 }
 
@@ -1025,7 +1058,7 @@ private fun DashboardLegendRow(
         Box(
             modifier = Modifier
                 .padding(top = 3.dp)
-                .size(9.dp)
+                .size(6.dp)
                 .background(color = color, shape = RoundedCornerShape(50)),
         )
         Column(
@@ -1052,9 +1085,8 @@ private fun DashboardLegendRow(
         Text(
             text = shareText,
             modifier = Modifier.widthIn(min = 64.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = shareColor,
+            style = QbNumberStyles.small,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             softWrap = false,
             textAlign = TextAlign.End,

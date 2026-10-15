@@ -27,6 +27,9 @@ data class ConnectionSettings(
     val hasSeenServerStackReorderHint: Boolean = false,
     val hasSeenServerDashboardSwipeHint: Boolean = false,
     val hasSeenServerDashboardCardHint: Boolean = false,
+    // A password is stored but could not be decrypted (Keystore key lost). Not
+    // persisted; set when settings are loaded. Ignored once a new password is typed.
+    val passwordUnreadable: Boolean = false,
 ) {
     fun baseUrl(): String {
         return baseUrlCandidates().first()

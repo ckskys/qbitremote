@@ -1,5 +1,20 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.DashboardCustomize
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +68,8 @@ internal fun MainScreenTopBar(
     onSortDirectionSelected: (Boolean) -> Unit,
     onToggleSearchBar: () -> Unit,
     onOpenAddTorrent: () -> Unit,
+    // Server name inside a server's pages; null shows the app name.
+    title: String? = null,
 ) {
     val openDrawerDescription = stringResource(R.string.menu_open_drawer)
     val backDescription = stringResource(R.string.back)
@@ -88,10 +105,14 @@ internal fun MainScreenTopBar(
                     ButtonDefaults.TextButtonContentPadding
                 },
             ) {
-                Text(
-                    text = if (currentPage == AppPage.DASHBOARD) "≡" else "←",
-                    fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.onBackground,
+                Icon(
+                    imageVector = if (currentPage == AppPage.DASHBOARD) {
+                        Icons.Filled.Menu
+                    } else {
+                        Icons.AutoMirrored.Filled.ArrowBack
+                    },
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onBackground,
                 )
             }
         },
@@ -117,179 +138,134 @@ internal fun MainScreenTopBar(
                 TopBrandTitle(
                     modifier = Modifier.fillMaxWidth(),
                     compact = compactTorrentTopBar,
+                    title = title,
                 )
             }
         },
         actions = {
+            // Icon actions instead of text buttons: a lighter bar that leaves the
+            // title room (each keeps its label as the accessibility description).
             when (currentPage) {
                 AppPage.DASHBOARD -> {
-                    Row(
-                        modifier = Modifier.padding(end = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(
-                            modifier = Modifier.semantics {
-                                contentDescription = manageServersDescription
-                            },
-                            onClick = onOpenServerSheet,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.menu_servers),
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
-                        TextButton(onClick = onOpenSettings) {
-                            Text(
-                                text = stringResource(R.string.menu_settings),
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
-                    }
+                    TopBarIconAction(
+                        icon = Icons.Outlined.Dns,
+                        description = manageServersDescription,
+                        onClick = onOpenServerSheet,
+                    )
+                    TopBarIconAction(
+                        icon = Icons.Outlined.Settings,
+                        description = stringResource(R.string.menu_settings),
+                        onClick = onOpenSettings,
+                    )
                 }
 
                 AppPage.SERVER_DASHBOARD -> {
-                    TextButton(
+                    TopBarIconAction(
+                        icon = Icons.Outlined.DashboardCustomize,
+                        description = stringResource(R.string.dashboard_manage_cards_action),
                         onClick = onOpenCardManager,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.dashboard_manage_cards_action),
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                    )
                 }
 
                 AppPage.SETTINGS -> {
-                    TextButton(
+                    TopBarIconAction(
+                        icon = if (connected) Icons.Outlined.Refresh else Icons.Outlined.Link,
+                        description = if (connected) {
+                            stringResource(R.string.refresh)
+                        } else {
+                            stringResource(R.string.connect)
+                        },
+                        enabled = !isManualRefreshing,
                         onClick = onRefreshOrConnect,
-                    ) {
-                        Text(
-                            text = if (connected) {
-                                if (isManualRefreshing) {
-                                    stringResource(R.string.refreshing)
-                                } else {
-                                    stringResource(R.string.refresh)
-                                }
-                            } else {
-                                stringResource(R.string.connect)
-                            },
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                    )
                 }
 
                 AppPage.TORRENT_DETAIL -> {
-                    TextButton(
+                    TopBarIconAction(
+                        icon = Icons.Outlined.Refresh,
+                        description = stringResource(R.string.refresh),
                         onClick = onRefreshOrConnect,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.refresh),
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                    )
                 }
 
                 AppPage.TORRENT_LIST -> {
-                    Row(
-                        modifier = Modifier
-                            .padding(end = 2.dp)
-                            .offset(x = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box {
-                            TextButton(
-                                modifier = Modifier
-                                    .defaultMinSize(minWidth = 1.dp, minHeight = 36.dp)
-                                    .semantics {
-                                        contentDescription = sortDescription
-                                    },
-                                onClick = { onSortMenuVisibilityChange(true) },
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.menu_sort),
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                    style = MaterialTheme.typography.labelLarge,
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showSortMenu,
-                                onDismissRequest = { onSortMenuVisibilityChange(false) },
-                            ) {
-                                TorrentListSortOption.entries.forEach { option ->
-                                    val isSelected = option == sortOption
-                                    DropdownMenuItem(
-                                        text = {
-                                            val prefix = if (isSelected) "✓ " else ""
-                                            Text("$prefix${torrentListSortLabel(option)}")
-                                        },
-                                        onClick = {
-                                            onSortOptionSelected(option)
-                                        },
-                                    )
-                                }
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                        text = {
-                                            val prefix = if (sortDescending) "✓ " else ""
-                                            Text("${prefix}${stringResource(R.string.sort_descending)}")
-                                        },
-                                    onClick = {
-                                        onSortDirectionSelected(true)
-                                    },
-                                )
-                                DropdownMenuItem(
-                                        text = {
-                                            val prefix = if (!sortDescending) "✓ " else ""
-                                            Text("${prefix}${stringResource(R.string.sort_ascending)}")
-                                        },
-                                    onClick = {
-                                        onSortDirectionSelected(false)
-                                    },
-                                )
-                            }
-                        }
-                        TextButton(
-                            modifier = Modifier
-                                .defaultMinSize(minWidth = 1.dp, minHeight = 36.dp)
-                                .semantics {
-                                    contentDescription = searchDescription
-                                },
-                            onClick = onToggleSearchBar,
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    TopBarIconAction(
+                        icon = if (showSearchBar) Icons.Outlined.SearchOff else Icons.Outlined.Search,
+                        description = if (showSearchBar) {
+                            stringResource(R.string.menu_collapse)
+                        } else {
+                            searchDescription
+                        },
+                        onClick = onToggleSearchBar,
+                    )
+                    Box {
+                        TopBarIconAction(
+                            icon = Icons.AutoMirrored.Outlined.Sort,
+                            description = sortDescription,
+                            onClick = { onSortMenuVisibilityChange(true) },
+                        )
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { onSortMenuVisibilityChange(false) },
                         ) {
-                            Text(
-                                text = if (showSearchBar) {
-                                    stringResource(R.string.menu_collapse)
-                                } else {
-                                    stringResource(R.string.menu_search)
+                            TorrentListSortOption.entries.forEach { option ->
+                                val isSelected = option == sortOption
+                                DropdownMenuItem(
+                                    text = {
+                                        val prefix = if (isSelected) "✓ " else ""
+                                        Text("$prefix${torrentListSortLabel(option)}")
+                                    },
+                                    onClick = {
+                                        onSortOptionSelected(option)
+                                    },
+                                )
+                            }
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = {
+                                    val prefix = if (sortDescending) "✓ " else ""
+                                    Text("${prefix}${stringResource(R.string.sort_descending)}")
                                 },
-                                color = MaterialTheme.colorScheme.onBackground,
-                                style = MaterialTheme.typography.labelLarge,
+                                onClick = {
+                                    onSortDirectionSelected(true)
+                                },
                             )
-                        }
-                        TextButton(
-                            modifier = Modifier
-                                .defaultMinSize(minWidth = 1.dp, minHeight = 36.dp)
-                                .semantics {
-                                    contentDescription = addTorrentDescription
+                            DropdownMenuItem(
+                                text = {
+                                    val prefix = if (!sortDescending) "✓ " else ""
+                                    Text("${prefix}${stringResource(R.string.sort_ascending)}")
                                 },
-                            onClick = onOpenAddTorrent,
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                        ) {
-                            Text(
-                                text = "+",
-                                color = MaterialTheme.colorScheme.onBackground,
-                                fontSize = 22.sp,
+                                onClick = {
+                                    onSortDirectionSelected(false)
+                                },
                             )
                         }
                     }
+                    TopBarIconAction(
+                        icon = Icons.Outlined.Add,
+                        description = addTorrentDescription,
+                        onClick = onOpenAddTorrent,
+                    )
                 }
-
             }
         },
     )
+}
+
+@Composable
+private fun TopBarIconAction(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    IconButton(onClick = onClick, enabled = enabled) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = MaterialTheme.colorScheme.onBackground,
+        )
+    }
 }
 
 @Composable

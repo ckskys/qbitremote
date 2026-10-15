@@ -182,10 +182,19 @@ fun formatTrackerSiteName(
     if (normalized.isEmpty()) return unknownLabel
     if (normalized.size == 1) return normalized.first()
 
+    val secondLevel = normalized[normalized.lastIndex - 1]
     val candidate = when {
         normalized.size >= 3 &&
             normalized.last().length == 2 &&
-            normalized[normalized.lastIndex - 1] in DOUBLE_SUFFIX_MARKERS -> {
+            secondLevel in DOUBLE_SUFFIX_MARKERS -> {
+            normalized[normalized.lastIndex - 2]
+        }
+
+        // Registry-style suffixes such as eu.org / us.com / uk.net: the short
+        // label is part of the suffix, not the site (tracker.torrent.eu.org -> "torrent").
+        normalized.size >= 3 &&
+            secondLevel.length <= 2 &&
+            normalized.last() in GENERIC_REGISTRY_TLDS -> {
             normalized[normalized.lastIndex - 2]
         }
 
@@ -196,6 +205,7 @@ fun formatTrackerSiteName(
 
 private val TRACKER_HOST_PREFIXES = setOf("tracker", "announce", "www")
 private val DOUBLE_SUFFIX_MARKERS = setOf("co", "com", "net", "org", "gov", "edu")
+private val GENERIC_REGISTRY_TLDS = setOf("org", "com", "net")
 private val SENSITIVE_TRACKER_QUERY_KEYS = setOf("passkey", "authkey", "token", "key", "uid")
 
 private fun parseTrackerHost(tracker: String): String? {

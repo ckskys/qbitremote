@@ -1,6 +1,18 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.BorderStroke
+import com.hjw.qbremote.ui.theme.QbTransferColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -57,18 +69,12 @@ internal fun TrackerInfoCard(
         stringResource(R.string.tracker_message_ok)
     }
 
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, qbGlassOutlineColor(defaultAlpha = 0.28f)),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = qbGlassSubtleContainerColor(),
-        ),
-    ) {
+    // A plain row: the caller groups trackers into one tonal list.
+    run {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp),
+                .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
@@ -76,15 +82,15 @@ internal fun TrackerInfoCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                TorrentMetaChip(
-                    text = status,
-                    containerColor = statusColor.copy(alpha = 0.22f),
-                    contentColor = statusColor,
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(statusColor, CircleShape),
                 )
                 Text(
-                    text = message,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = statusColor,
+                    text = "$status · $message",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -133,114 +139,6 @@ internal fun TrackerInfoCard(
                 }
             }
         }
-    }
-}
-
-internal enum class TorrentUnifiedInfoPanelStyle {
-    SegmentedRows,
-    Summary,
-}
-
-@Composable
-internal fun TorrentUnifiedInfoPanel(
-    items: List<Pair<String, String>>,
-    modifier: Modifier = Modifier,
-    style: TorrentUnifiedInfoPanelStyle = TorrentUnifiedInfoPanelStyle.SegmentedRows,
-) {
-    if (items.isEmpty()) return
-    OutlinedCard(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, qbGlassOutlineColor(defaultAlpha = 0.28f)),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = qbGlassStrongContainerColor(),
-        ),
-    ) {
-        when (style) {
-            TorrentUnifiedInfoPanelStyle.SegmentedRows -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    items.forEachIndexed { index, (label, value) ->
-                        TorrentUnifiedInfoRow(
-                            label = label,
-                            value = value,
-                        )
-                        if (index < items.lastIndex) {
-                            HorizontalDivider(
-                                color = qbGlassOutlineColor(defaultAlpha = 0.18f),
-                            )
-                        }
-                    }
-                }
-            }
-            TorrentUnifiedInfoPanelStyle.Summary -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items.forEach { (label, value) ->
-                        TorrentUnifiedInfoSummaryItem(
-                            label = label,
-                            value = value,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TorrentUnifiedInfoRow(
-    label: String,
-    value: String,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(0.42f),
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(0.58f),
-        )
-    }
-}
-
-@Composable
-private fun TorrentUnifiedInfoSummaryItem(
-    label: String,
-    value: String,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-        )
     }
 }
 
@@ -313,40 +211,19 @@ internal data class TorrentStateStyle(
 internal fun torrentStateStyle(state: String): TorrentStateStyle {
     val normalized = normalizeTorrentState(state)
     val base = when (normalized) {
-        "error", "missingfiles" -> Color(0xFFD32F2F)
-        "downloading", "stalleddl", "forceddl" -> Color(0xFF1E88E5)
-        "uploading", "stalledup", "forcedup" -> Color(0xFF2E7D32)
-        "pauseddl", "pausedup", "stoppeddl", "stoppedup" -> Color(0xFF6D6D6D)
-        "queueddl", "queuedup", "checkingdl", "checkingup", "checkingresumedata", "metadl", "forcedmetadl", "allocating", "moving" -> Color(0xFFF9A825)
-        else -> Color(0xFF607D8B)
+        "error", "missingfiles" -> Color(0xFFE5676B)
+        "downloading", "stalleddl", "forceddl" -> QbTransferColors.Download
+        "uploading", "stalledup", "forcedup" -> QbTransferColors.Upload
+        "pauseddl", "pausedup", "stoppeddl", "stoppedup" -> Color(0xFF7A828E)
+        "queueddl", "queuedup", "checkingdl", "checkingup", "checkingresumedata", "metadl", "forcedmetadl", "allocating", "moving" -> Color(0xFFE0A458)
+        else -> Color(0xFF8B94A1)
     }
     return TorrentStateStyle(
         borderColor = base,
         progressColor = base,
-        tagContainer = base.copy(alpha = 0.20f),
+        tagContainer = base.copy(alpha = 0.14f),
         tagContent = base,
     )
-}
-
-@Composable
-internal fun TorrentStateTag(
-    label: String,
-    style: TorrentStateStyle,
-) {
-    Box(
-        modifier = Modifier
-            .background(style.tagContainer, RoundedCornerShape(8.dp))
-            .padding(horizontal = 7.dp, vertical = 2.dp),
-    ) {
-        Text(
-            text = label,
-            color = style.tagContent,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
 }
 
 @Composable
@@ -376,134 +253,6 @@ internal fun TorrentMetaChip(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-    }
-}
-
-@Composable
-internal fun TorrentInfoCell(
-    text: String,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-) {
-    Box(
-        modifier = modifier
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(onClick = onClick)
-                } else {
-                    Modifier
-                }
-            )
-            .background(
-                color = qbGlassSubtleContainerColor(),
-                shape = RoundedCornerShape(7.dp),
-            )
-            .padding(horizontal = 6.dp, vertical = 3.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-internal fun TorrentQuickStatsRow(
-    torrent: TorrentInfo,
-    categoryText: String,
-    savePathText: String,
-    minHeight: Dp,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = minHeight),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(
-            modifier = Modifier.weight(0.24f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            Text(
-                text = "▲ ${formatSpeed(torrent.uploadSpeed)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF6E8DFF),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "▼ ${formatSpeed(torrent.downloadSpeed)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFFFF5B95),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        Column(
-            modifier = Modifier.weight(0.44f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            Text(
-                text = "📤 ${formatBytes(torrent.uploaded)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "📥 ${formatBytes(torrent.downloaded)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "🏷️ $categoryText",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "📁 $savePathText",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        Column(
-            modifier = Modifier.weight(0.32f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            Text(
-                text = "⚖ ${formatRatio(torrent.ratio)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "💾 ${formatBytes(torrent.size)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "🌱 ${torrent.seeders}/${torrent.numComplete}  👥 ${torrent.leechers}/${torrent.numIncomplete}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
     }
 }
 
@@ -558,108 +307,3 @@ internal fun compactTagsLabel(tags: String, noTagsText: String): String {
     return "$preview +${normalizedTags.size - 2}"
 }
 
-@Composable
-internal fun TorrentMetaHeaderRow(
-    tagsText: String,
-    crossSeedCount: Int,
-    stateLabel: String,
-    stateStyle: TorrentStateStyle,
-    addedOnText: String,
-    activeAgoText: String,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        LazyRow(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            contentPadding = PaddingValues(0.dp),
-        ) {
-            item {
-                TorrentMetaChip(
-                    text = tagsText,
-                    containerColor = Color(0xFF0B8F6F),
-                    contentColor = Color(0xFFE1FFF4),
-                )
-            }
-            item {
-                TorrentMetaChip(
-                    text = stringResource(R.string.torrent_cross_seed_chip_fmt, crossSeedCount),
-                    containerColor = Color(0xFF1F7AE0),
-                    contentColor = Color(0xFFE4F0FF),
-                )
-            }
-            item {
-                TorrentStateTag(
-                    label = stateLabel,
-                    style = stateStyle,
-                )
-            }
-        }
-
-        Column(
-            modifier = Modifier.widthIn(max = 170.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            TorrentTimestampLabel(
-                iconResId = R.drawable.ic_meta_added,
-                markerColor = Color(0xFF2D74F7),
-                text = addedOnText,
-            )
-            TorrentTimestampLabel(
-                iconResId = R.drawable.ic_meta_active,
-                markerColor = Color(0xFF0C9FA9),
-                text = activeAgoText,
-            )
-        }
-    }
-}
-
-@Composable
-internal fun TorrentTimestampLabel(
-    iconResId: Int,
-    markerColor: Color,
-    text: String,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(12.dp)
-                .background(
-                    color = markerColor.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(3.dp),
-                )
-                .border(
-                    width = 1.dp,
-                    color = markerColor.copy(alpha = 0.45f),
-                    shape = RoundedCornerShape(3.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(id = iconResId),
-                contentDescription = null,
-                modifier = Modifier.size(8.dp),
-                tint = markerColor,
-            )
-        }
-
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.sp,
-                lineHeight = 12.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}

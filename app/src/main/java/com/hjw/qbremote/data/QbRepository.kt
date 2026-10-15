@@ -1,5 +1,7 @@
 ﻿package com.hjw.qbremote.data
 
+import com.hjw.qbremote.data.model.FilePriority
+import com.hjw.qbremote.data.model.TorrentPeer
 import com.hjw.qbremote.data.model.DashboardData
 import com.hjw.qbremote.data.model.AddTorrentRequest
 import com.hjw.qbremote.data.model.CountryPeerSnapshot
@@ -20,7 +22,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import retrofit2.Response
@@ -37,6 +46,15 @@ class QbRepository : TorrentBackend {
 
     private var api: QbApi? = null
     private var activeSettings: ConnectionSettings? = null
+    private val reloginMutex = Mutex()
+
+    // Bumped whenever a login establishes a new session; lets concurrent callers
+    // that hit the same expired session share one relogin.
+    @Volatile
+    private var sessionGeneration = 0L
+
+    @Volatile
+    private var cachedServerVersion: String? = null
 
     // Shared across all QbRepository instances (including one-shot dashboard
     // fetchers): OkHttpClient owns a connection pool and dispatcher thread pool,
@@ -44,6 +62,8 @@ class QbRepository : TorrentBackend {
     private val baseOkHttpClient get() = sharedOkHttpClient
 
     companion object {
+        private const val COUNTRY_PEER_FETCH_CONCURRENCY = 4
+
         private val sharedOkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(8, TimeUnit.SECONDS)
@@ -72,6 +92,8 @@ class QbRepository : TorrentBackend {
                     val effectiveCredentials = loginWithRetry(newApi, settings)
 
                     api = newApi
+                    sessionGeneration++
+                    cachedServerVersion = null
                     activeSettings = settings.copy(
                         username = effectiveCredentials.username,
                         password = effectiveCredentials.password,
@@ -106,6 +128,13 @@ class QbRepository : TorrentBackend {
         } else {
             lastError?.message?.takeIf { it.isNotBlank() } ?: "Unknown error."
         }
+        if (looksLikeHttpsMismatch(settings.useHttps, rootMessage)) {
+            throw BackendConnectionError.HttpsMismatch(
+                backendType = ServerBackendType.QBITTORRENT,
+                usedHttps = settings.useHttps,
+                detail = rootMessage,
+            )
+        }
         throw IllegalStateException(
             "Unable to connect to qBittorrent. Tried: $candidateText. $rootMessage",
             lastError,
@@ -115,6 +144,7 @@ class QbRepository : TorrentBackend {
     override fun clearSession() {
         api = null
         activeSettings = null
+        cachedServerVersion = null
         torrentCache.clear()
     }
 
@@ -192,15 +222,23 @@ class QbRepository : TorrentBackend {
         }
     }
 
+    // The version only changes when the server restarts, which ends the session
+    // (relogin bumps sessionGeneration), so it is fetched once per login instead
+    // of on every refresh.
     override suspend fun fetchServerVersion(): Result<String> = runCatching {
-        executeWithRetry { liveApi -> liveApi.appVersion().trim() }.ifBlank { "-" }
+        cachedServerVersion?.let { return@runCatching it }
+        val version = executeWithRetry { liveApi -> liveApi.appVersion().trim() }.ifBlank { "-" }
+        cachedServerVersion = version
+        version
     }
 
     override suspend fun fetchTorrentDetail(hash: String): Result<TorrentDetailData> = runCatching {
         require(hash.isNotBlank()) { "Invalid torrent hash." }
-        val properties = executeWithRetry { liveApi -> liveApi.torrentProperties(hash) }
-        val files = executeWithRetry { liveApi -> liveApi.torrentFiles(hash) }
-        TorrentDetailData(properties = properties, files = files)
+        coroutineScope {
+            val properties = async { executeWithRetry { liveApi -> liveApi.torrentProperties(hash) } }
+            val files = async { executeWithRetry { liveApi -> liveApi.torrentFiles(hash) } }
+            TorrentDetailData(properties = properties.await(), files = files.await())
+        }
     }
 
     override suspend fun fetchTorrentTrackers(hash: String): Result<List<com.hjw.qbremote.data.model.TorrentTracker>> =
@@ -276,16 +314,36 @@ class QbRepository : TorrentBackend {
     }
 
     override suspend fun fetchCountryPeerSnapshots(hashes: List<String>): Result<List<CountryPeerSnapshot>> = runCatching {
-        val snapshots = mutableListOf<CountryPeerSnapshot>()
-        hashes
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .forEach { hash ->
-                val raw = executeWithRetry { liveApi -> liveApi.torrentPeers(hash = hash) }
-                snapshots += parseCountryPeerSnapshots(hash = hash, raw = raw)
-            }
-        snapshots
+        // qB has no batch peers endpoint, so this is one request per torrent. Bound
+        // the fan-out instead of going strictly serial, and don't retry: country
+        // stats are best-effort and the next refresh samples again.
+        val permits = Semaphore(COUNTRY_PEER_FETCH_CONCURRENCY)
+        coroutineScope {
+            hashes
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .map { hash ->
+                    async {
+                        permits.withPermit {
+                            try {
+                                val raw = executeWithRetry(maxAttempts = 1) { liveApi ->
+                                    liveApi.torrentPeers(hash = hash)
+                                }
+                                parseCountryPeerSnapshots(hash = hash, raw = raw)
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                // One torrent's peers failing must not drop the
+                                // whole sample for every other torrent.
+                                emptyList()
+                            }
+                        }
+                    }
+                }
+                .awaitAll()
+                .flatten()
+        }
     }
 
     override suspend fun renameTorrent(hash: String, name: String): Result<Unit> = runCatching {
@@ -313,14 +371,19 @@ class QbRepository : TorrentBackend {
 
     override suspend fun setTorrentTags(hash: String, oldTags: String, newTags: String): Result<Unit> = runCatching {
         require(hash.isNotBlank()) { "Invalid torrent hash." }
-        val oldNormalized = oldTags.trim()
-        val newNormalized = newTags.trim()
-        executeWithRetry { liveApi ->
-            if (oldNormalized.isNotBlank()) {
-                liveApi.removeTags(hash, oldNormalized).ensureSuccess("Remove old tags failed.")
+        fun parseTags(raw: String) = raw.split(',').map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        val newTagList = parseTags(newTags)
+        val removedTags = parseTags(oldTags) - newTagList.toSet()
+        // Add before remove, and only remove tags that were actually dropped: a
+        // failure between the two calls then leaves extra tags rather than none.
+        if (newTagList.isNotEmpty()) {
+            executeWithRetry { liveApi ->
+                liveApi.addTags(hash, newTagList.joinToString(",")).ensureSuccess("Add tags failed.")
             }
-            if (newNormalized.isNotBlank()) {
-                liveApi.addTags(hash, newNormalized).ensureSuccess("Add tags failed.")
+        }
+        if (removedTags.isNotEmpty()) {
+            executeWithRetry { liveApi ->
+                liveApi.removeTags(hash, removedTags.joinToString(",")).ensureSuccess("Remove old tags failed.")
             }
         }
     }
@@ -391,6 +454,26 @@ class QbRepository : TorrentBackend {
                 seedingTimeLimit = -1,
                 inactiveSeedingTimeLimit = -1,
             ).ensureSuccess("Set share ratio failed.")
+        }
+    }
+
+    override suspend fun fetchTorrentPeers(hash: String): Result<List<TorrentPeer>> = runCatching {
+        require(hash.isNotBlank()) { "Invalid torrent hash." }
+        val raw = executeWithRetry { liveApi -> liveApi.torrentPeers(hash = hash) }
+        parseTorrentPeers(raw)
+    }
+
+    override suspend fun setFilePriority(
+        hash: String,
+        fileIndexes: List<Int>,
+        priority: FilePriority,
+    ): Result<Unit> = runCatching {
+        require(hash.isNotBlank()) { "Invalid torrent hash." }
+        val ids = fileIndexes.filter { it >= 0 }.distinct()
+        if (ids.isEmpty()) return@runCatching
+        executeWithRetry { liveApi ->
+            liveApi.setFilePriority(hash, ids.joinToString("|"), priority.qbValue)
+                .ensureSuccess("Set file priority failed.")
         }
     }
 
@@ -468,14 +551,31 @@ class QbRepository : TorrentBackend {
     }
 
     private suspend fun fallbackFullRefresh(): DashboardData {
-        val transfer = executeWithRetry { liveApi -> liveApi.transferInfo() }
-        val maindata = runCatching { executeWithRetry { liveApi -> liveApi.syncMaindata(0) } }.getOrNull()
-        val rawTorrents = executeWithRetry { liveApi ->
-            liveApi.torrentsInfo(
-                sort = "added_on",
-                reverse = true,
-                limit = MAX_FETCH_DASHBOARD_TORRENTS,
-            )
+        // The three reads are independent: issue them concurrently so a refresh
+        // costs one round trip instead of three serial ones.
+        val (transfer, maindata, rawTorrents) = coroutineScope {
+            val transferDeferred = async { executeWithRetry { liveApi -> liveApi.transferInfo() } }
+            val maindataDeferred = async {
+                // Optional (only used for free disk space): its failure must not
+                // fail the refresh, but cancellation must still propagate.
+                try {
+                    executeWithRetry { liveApi -> liveApi.syncMaindata(0) }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    null
+                }
+            }
+            val torrentsDeferred = async {
+                executeWithRetry { liveApi ->
+                    liveApi.torrentsInfo(
+                        sort = "added_on",
+                        reverse = true,
+                        limit = MAX_FETCH_DASHBOARD_TORRENTS,
+                    )
+                }
+            }
+            Triple(transferDeferred.await(), maindataDeferred.await(), torrentsDeferred.await())
         }
         val previousByHash = torrentCache.toMap()
         val baseTorrents = rawTorrents
@@ -546,13 +646,14 @@ class QbRepository : TorrentBackend {
 
         while (attempt < maxAttempts) {
             attempt++
+            val generation = sessionGeneration
             try {
                 return action(requireApi())
             } catch (error: Throwable) {
                 val shouldRetry = when (error) {
                     is HttpException -> {
                         if (error.code() == 401 || error.code() == 403) {
-                            relogin()
+                            relogin(observedGeneration = generation)
                             true
                         } else {
                             error.code() in 500..599
@@ -795,12 +896,20 @@ class QbRepository : TorrentBackend {
 
     private class AuthLockedException(message: String) : IllegalStateException(message)
 
-    private suspend fun relogin() {
-        val liveApi = requireApi()
-        val settings = activeSettings ?: throw IllegalStateException(
-            "Connection settings are missing for session recovery."
-        )
-        loginWithRetry(liveApi, settings)
+    // Serialized so that N concurrent requests failing on one expired session
+    // trigger a single login instead of a burst (which can trip qB's IP ban).
+    private suspend fun relogin(observedGeneration: Long) {
+        reloginMutex.withLock {
+            // Another request already re-established the session after this one failed.
+            if (sessionGeneration != observedGeneration) return
+            val liveApi = requireApi()
+            val settings = activeSettings ?: throw IllegalStateException(
+                "Connection settings are missing for session recovery."
+            )
+            loginWithRetry(liveApi, settings)
+            sessionGeneration++
+            cachedServerVersion = null
+        }
     }
 
     private fun buildApi(baseUrl: String, headerMode: HeaderMode): QbApi {
@@ -910,6 +1019,35 @@ class QbRepository : TorrentBackend {
                 uploadedBytes = uploadedBytes.coerceAtLeast(0L),
             )
         }
+    }
+
+    private fun parseTorrentPeers(raw: String): List<TorrentPeer> {
+        val peersObject = runCatching {
+            JsonParser.parseString(raw).asJsonObject.getAsJsonObject("peers")
+        }.getOrNull() ?: return emptyList()
+        return peersObject.entrySet().mapNotNull { (peerId, value) ->
+            val peer = value.asJsonObjectOrNull() ?: return@mapNotNull null
+            TorrentPeer(
+                address = buildPeerAddress(peer, peerId),
+                client = peer.readString("client"),
+                countryCode = peer.readString("country_code").uppercase(Locale.US),
+                progress = (peer.readDouble("progress") ?: 0.0).toFloat().coerceIn(0f, 1f),
+                downloadSpeed = (peer.readLong("dl_speed") ?: 0L).coerceAtLeast(0L),
+                uploadSpeed = (peer.readLong("up_speed") ?: 0L).coerceAtLeast(0L),
+                downloaded = (peer.readLong("downloaded") ?: 0L).coerceAtLeast(0L),
+                uploaded = (peer.readLong("uploaded") ?: 0L).coerceAtLeast(0L),
+                flags = peer.readString("flags"),
+            )
+        }.sortedWith(compareByDescending<TorrentPeer> { it.uploadSpeed + it.downloadSpeed }.thenBy { it.address })
+    }
+
+    private fun JsonObject.readDouble(vararg keys: String): Double? {
+        keys.forEach { key ->
+            val value = get(key) ?: return@forEach
+            if (value.isJsonNull) return@forEach
+            runCatching { value.asDouble }.getOrNull()?.let { return it }
+        }
+        return null
     }
 
     private fun buildPeerAddress(peer: JsonObject, peerId: String): String {
@@ -1100,13 +1238,25 @@ class QbRepository : TorrentBackend {
         // Accessed concurrently from OkHttp worker threads.
         private val cookieStore = java.util.concurrent.ConcurrentHashMap<String, List<Cookie>>()
 
+        // Merge by cookie identity instead of replacing the host's list: a reverse
+        // proxy/CDN that sets its own cookie on API responses must not evict the
+        // qBittorrent SID (which would force a relogin on every cycle).
         override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-            cookieStore[url.host] = cookies
+            if (cookies.isEmpty()) return
+            cookieStore.compute(url.host) { _, existing ->
+                val now = System.currentTimeMillis()
+                val incomingKeys = cookies.map { it.identityKey() }.toSet()
+                val retained = existing.orEmpty().filterNot { it.identityKey() in incomingKeys }
+                (retained + cookies).filter { it.expiresAt > now }
+            }
         }
 
         override fun loadForRequest(url: HttpUrl): List<Cookie> {
-            return cookieStore[url.host].orEmpty()
+            val now = System.currentTimeMillis()
+            return cookieStore[url.host].orEmpty().filter { it.expiresAt > now }
         }
+
+        private fun Cookie.identityKey(): String = "$name\u0000$domain\u0000$path"
     }
 
     private class WebUiHeaderInterceptor(

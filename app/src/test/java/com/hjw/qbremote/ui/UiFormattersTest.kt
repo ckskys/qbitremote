@@ -59,6 +59,18 @@ class UiFormattersTest {
             formatTrackerSiteName("https://announce.example.co.uk/announce", "unknown"),
         )
         assertEquals(
+            "torrent",
+            formatTrackerSiteName("udp://tracker.torrent.eu.org:451/announce", "unknown"),
+        )
+        assertEquals(
+            "opentrackr",
+            formatTrackerSiteName("udp://tracker.opentrackr.org:1337/announce", "unknown"),
+        )
+        assertEquals(
+            "hd",
+            formatTrackerSiteName("https://pt.hd.cn/announce.php", "unknown"),
+        )
+        assertEquals(
             "unknown",
             formatTrackerSiteName("", "unknown"),
         )

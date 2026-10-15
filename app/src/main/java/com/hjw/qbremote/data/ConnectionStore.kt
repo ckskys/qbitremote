@@ -34,6 +34,7 @@ class ConnectionStore(internal val context: Context) {
     val settingsFlow: Flow<ConnectionSettings> = context.dataStore.data.map { pref ->
         val activeProfileId = pref[Keys.ActiveServerProfileId].orEmpty()
         pref.toSettings(resolvePassword(activeProfileId))
+            .copy(passwordUnreadable = secureCredentials.hasUnreadablePassword(activeProfileId))
     }.distinctUntilChanged()
 
     val serverProfilesFlow: Flow<ServerProfilesState> = context.dataStore.data.map { pref ->
@@ -593,6 +594,7 @@ class ConnectionStore(internal val context: Context) {
             username = profile.username,
             serverBackendType = profile.backendType,
             refreshSeconds = profile.refreshSeconds,
+            passwordUnreadable = secureCredentials.hasUnreadablePassword(profileId),
         )
     }
 

@@ -1,5 +1,6 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -66,9 +67,23 @@ internal fun LazyListScope.torrentListPageContent(
     isPendingAction: (String) -> Boolean,
     onOpenDetails: (TorrentInfo) -> Unit,
     onOpenConnection: () -> Unit,
+    selection: TorrentListSelection = TorrentListSelection(),
 ) {
     if (showContent) {
-        if (showSearchBar) {
+        if (selection.active) {
+            stickyHeader(key = "torrent_selection_bar") {
+                TorrentSelectionBar(
+                    selectedCount = selection.selectedHashes.size,
+                    allVisibleSelected = visibleItems.isNotEmpty() &&
+                        visibleItems.all { it.torrent.hash in selection.selectedHashes },
+                    onExit = selection.onExit,
+                    onSelectAll = { selection.onSelectAll(visibleItems.map { it.torrent.hash }) },
+                    onPause = selection.onPauseSelected,
+                    onResume = selection.onResumeSelected,
+                    onDelete = selection.onDeleteSelected,
+                )
+            }
+        } else if (showSearchBar) {
             stickyHeader(key = "torrent_search_bar") {
                 OutlinedTextField(
                     value = searchQuery,
@@ -98,21 +113,40 @@ internal fun LazyListScope.torrentListPageContent(
             key = { item -> item.torrent.hash.ifBlank { item.identityKey } },
         ) { item ->
             val itemModifier = if (animatePlacement) {
-                Modifier.animateItemPlacement(
-                    animationSpec = spring(
+                Modifier.animateItem(
+                    fadeInSpec = null,
+                    fadeOutSpec = null,
+                    placementSpec = spring(
                         dampingRatio = 0.78f,
                         stiffness = 380f,
-                    )
+                    ),
                 )
             } else {
                 Modifier
             }
-            Box(modifier = itemModifier) {
+            val hash = item.torrent.hash
+            val pending = isPendingAction(hash)
+            SwipeableTorrentRow(
+                torrent = item.torrent,
+                // No swipe actions while multi-selecting or while an action runs.
+                enabled = !selection.active && !pending,
+                onPauseResume = selection.onSwipePauseResume,
+                onRequestDelete = selection.onSwipeDelete,
+                modifier = itemModifier,
+            ) {
                 TorrentCard(
                     torrent = item.torrent,
                     crossSeedCount = item.crossSeedCount,
-                    isPending = isPendingAction(item.torrent.hash),
-                    onOpenDetails = { onOpenDetails(item.torrent) },
+                    isPending = pending,
+                    selected = selection.active && hash in selection.selectedHashes,
+                    onOpenDetails = {
+                        if (selection.active) {
+                            selection.onToggle(hash)
+                        } else {
+                            onOpenDetails(item.torrent)
+                        }
+                    },
+                    onLongClick = { selection.onToggle(hash) },
                 )
             }
         }
@@ -147,14 +181,17 @@ private fun FilterChipRow(
     categoryOptions: List<String>,
     tagOptions: List<String>,
 ) {
+    // Borderless pills: neutral when idle, inverted (light on dark) when selected.
     val chipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-        selectedLabelColor = MaterialTheme.colorScheme.primary,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+        selectedLabelColor = MaterialTheme.colorScheme.surface,
     )
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(qbGlassStrongContainerColor())
+            .background(MaterialTheme.colorScheme.background)
             .padding(vertical = 2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -163,7 +200,7 @@ private fun FilterChipRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TorrentStateFilter.entries.forEach { stateFilter ->
                 FilterChip(
@@ -171,12 +208,8 @@ private fun FilterChipRow(
                     onClick = { onStateFilterChange(stateFilter) },
                     label = { Text(stringResource(stateFilter.labelKey)) },
                     colors = chipColors,
-                    border = FilterChipDefaults.filterChipBorder(
-                        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                        selectedBorderColor = MaterialTheme.colorScheme.primary,
-                        enabled = true,
-                        selected = filterState.stateFilter == stateFilter,
-                    ),
+                    border = null,
+                    shape = CircleShape,
                 )
             }
         }
@@ -186,7 +219,7 @@ private fun FilterChipRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 categoryOptions.forEach { category ->
                     FilterChip(
@@ -194,12 +227,8 @@ private fun FilterChipRow(
                         onClick = { onCategoryFilterChange(category) },
                         label = { Text(category) },
                         colors = chipColors,
-                        border = FilterChipDefaults.filterChipBorder(
-                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                            enabled = true,
-                            selected = filterState.categoryFilter == category,
-                        ),
+                        border = null,
+                        shape = CircleShape,
                     )
                 }
             }
@@ -210,7 +239,7 @@ private fun FilterChipRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 tagOptions.forEach { tag ->
                     FilterChip(
@@ -218,12 +247,8 @@ private fun FilterChipRow(
                         onClick = { onTagFilterChange(tag) },
                         label = { Text(tag) },
                         colors = chipColors,
-                        border = FilterChipDefaults.filterChipBorder(
-                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                            enabled = true,
-                            selected = filterState.tagFilter == tag,
-                        ),
+                        border = null,
+                        shape = CircleShape,
                     )
                 }
             }
@@ -251,90 +276,17 @@ private fun buildTorrentPlacementKeyCountMap(keys: List<String>): Map<String, In
     return counts
 }
 
-@Composable
-private fun SwipeableTorrentItem(
-    modifier: Modifier = Modifier,
-    onPauseResume: () -> Unit,
-    onDelete: () -> Unit,
-    isPending: Boolean,
-    content: @Composable () -> Unit,
+/** Multi-select state and callbacks for the torrent list (hoisted in MainScreen). */
+internal data class TorrentListSelection(
+    val selectedHashes: Set<String> = emptySet(),
+    val onToggle: (String) -> Unit = {},
+    val onSelectAll: (List<String>) -> Unit = {},
+    val onExit: () -> Unit = {},
+    val onPauseSelected: () -> Unit = {},
+    val onResumeSelected: () -> Unit = {},
+    val onDeleteSelected: () -> Unit = {},
+    val onSwipePauseResume: (TorrentInfo) -> Unit = {},
+    val onSwipeDelete: (TorrentInfo) -> Unit = {},
 ) {
-    val buttonWidth = 72.dp
-    val buttonWidthPx = with(LocalDensity.current) { buttonWidth.toPx() }
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    val isSwipedLeft = offsetX < -buttonWidthPx * 0.3f
-    val isSwipedRight = offsetX > buttonWidthPx * 0.3f
-    val animatedOffset by animateDpAsState(
-        targetValue = when {
-            offsetX > buttonWidthPx * 0.5f -> buttonWidth
-            offsetX < -buttonWidthPx * 0.5f -> -buttonWidth
-            else -> 0.dp
-        },
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
-        label = "swipeOffset",
-    )
-    val offsetPx = with(LocalDensity.current) { animatedOffset.roundToPx() }
-
-    Box(modifier = modifier) {
-        // Background: small action button visible only when actively swiped
-        val buttonSize = 40.dp
-        if (isSwipedRight) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = (buttonWidth - buttonSize) / 2),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(buttonSize)
-                        .background(Color(0xFF4CAF50), RoundedCornerShape(10.dp))
-                        .clickable { onPauseResume(); offsetX = 0f },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(24.dp))
-                }
-            }
-        } else if (isSwipedLeft) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(end = (buttonWidth - buttonSize) / 2),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(buttonSize)
-                        .background(Color(0xFFE53935), RoundedCornerShape(10.dp))
-                        .clickable { onDelete(); offsetX = 0f },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Default.Delete, null, tint = Color.White, modifier = Modifier.size(24.dp))
-                }
-            }
-        }
-
-        // Foreground card with drag
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(offsetPx, 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            val threshold = buttonWidthPx * 0.4f
-                            offsetX = when {
-                                offsetX > threshold -> buttonWidthPx
-                                offsetX < -threshold -> -buttonWidthPx
-                                else -> 0f
-                            }
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            offsetX = (offsetX + dragAmount).coerceIn(-buttonWidthPx, buttonWidthPx)
-                        },
-                    )
-                },
-        ) {
-            content()
-        }
-    }
+    val active: Boolean get() = selectedHashes.isNotEmpty()
 }

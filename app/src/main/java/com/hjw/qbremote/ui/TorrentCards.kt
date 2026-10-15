@@ -1,9 +1,47 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.automirrored.outlined.FactCheck
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.Icons
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.animation.animateColorAsState
+import com.hjw.qbremote.ui.theme.QbNumberStyles
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import com.hjw.qbremote.ui.theme.QbTransferColors
+import com.hjw.qbremote.data.model.FilePriority
+import com.hjw.qbremote.data.model.TorrentPeer
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -28,6 +66,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,89 +101,141 @@ internal fun TorrentCard(
     crossSeedCount: Int,
     isPending: Boolean,
     onOpenDetails: () -> Unit,
+    selected: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val effectiveState = effectiveTorrentState(torrent)
     val stateLabel = localizedTorrentStateLabel(effectiveState)
-    val categoryText = normalizeCategoryLabel(
-        category = torrent.category,
-        noCategoryText = stringResource(R.string.no_category),
-    )
-    val tagsText = compactTagsLabel(
-        tags = torrent.tags,
-        noTagsText = stringResource(R.string.no_tags),
-    )
-    val activeAgoText = formatActiveAgo(torrent.lastActivity)
-    val addedOnText = formatAddedOn(torrent.addedOn)
-    val savePathText = torrent.savePath.ifBlank { "-" }
     val stateStyle = torrentStateStyle(effectiveState)
+    val complete = torrent.progress >= 1f
+    val noCategory = stringResource(R.string.no_category)
+    val noTags = stringResource(R.string.no_tags)
+    val categoryText = normalizeCategoryLabel(category = torrent.category, noCategoryText = noCategory)
+    val tagsText = compactTagsLabel(tags = torrent.tags, noTagsText = noTags)
+    // Second line: state · size · ETA while downloading, ratio otherwise.
+    val statusText = if (complete) stateLabel else "$stateLabel ${(torrent.progress * 100).toInt()}%"
+    val tailText = formatEta(torrent.eta).takeIf { !complete }
+        ?.let { stringResource(R.string.torrent_row_eta_fmt, it) }
+        ?: stringResource(R.string.torrent_row_ratio_fmt, formatRatio(torrent.ratio))
+    // Third, faint line only when there is something filed: category, tags, cross-seeds.
+    val filingText = buildList {
+        if (categoryText != noCategory) add(categoryText)
+        if (tagsText != noTags) add(tagsText)
+        if (crossSeedCount > 0) add(stringResource(R.string.torrent_cross_seed_chip_fmt, crossSeedCount))
+    }.joinToString("  ·  ")
+    val separatorColor = MaterialTheme.colorScheme.outline
+    val idleSpeedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
 
+    val cardShape = RoundedCornerShape(12.dp)
+    // Clip before combinedClickable so the ripple follows the rounded corners.
     OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !isPending) { onOpenDetails() },
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, stateStyle.borderColor.copy(alpha = 0.58f)),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = qbGlassSubtleContainerColor(),
-        ),
+            .clip(cardShape)
+            .combinedClickable(
+                enabled = !isPending,
+                onClick = onOpenDetails,
+                onLongClick = onLongClick,
+            ),
+        shape = cardShape,
+        border = if (selected) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            BorderStroke(1.dp, qbGlassOutlineColor())
+        },
+        colors = qbGlassCardColors(),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 9.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = torrent.name,
+                Column(
                     modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.SemiBold,
-                    lineHeight = 17.sp,
-                )
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = torrent.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(stateStyle.progressColor, CircleShape),
+                        )
+                        Text(
+                            text = buildAnnotatedString {
+                                append(statusText)
+                                listOf(formatBytes(torrent.size), tailText).forEach { part ->
+                                    withStyle(SpanStyle(color = separatorColor)) { append("  ·  ") }
+                                    append(part)
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (filingText.isNotEmpty()) {
+                        Text(
+                            text = filingText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "↑ " + formatSpeed(torrent.uploadSpeed),
+                        style = QbNumberStyles.small,
+                        color = if (torrent.uploadSpeed > 0L) QbTransferColors.Upload else idleSpeedColor,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "↓ " + formatSpeed(torrent.downloadSpeed),
+                        style = QbNumberStyles.small,
+                        color = if (torrent.downloadSpeed > 0L) QbTransferColors.Download else idleSpeedColor,
+                        maxLines = 1,
+                    )
+                }
             }
 
-            TorrentMetaHeaderRow(
-                tagsText = tagsText,
-                crossSeedCount = crossSeedCount,
-                stateLabel = stateLabel,
-                stateStyle = stateStyle,
-                addedOnText = addedOnText,
-                activeAgoText = activeAgoText,
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+            // Progress only matters until the torrent is complete.
+            if (!complete) {
+                val animatedProgress by animateFloatAsState(
+                    targetValue = torrent.progress.coerceIn(0f, 1f),
+                    animationSpec = tween(durationMillis = 450),
+                    label = "torrentCardProgress",
+                )
                 LinearProgressIndicator(
-                    progress = { torrent.progress.coerceIn(0f, 1f) },
-                    modifier = Modifier.weight(1f),
+                    progress = { animatedProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp),
                     color = stateStyle.progressColor,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                )
-                Text(
-                    text = formatPercent(torrent.progress),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = stateStyle.progressColor,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    strokeCap = StrokeCap.Round,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
                 )
             }
-
-            TorrentQuickStatsRow(
-                torrent = torrent,
-                categoryText = categoryText,
-                savePathText = savePathText,
-                minHeight = 96.dp,
-            )
         }
     }
 }
@@ -159,6 +250,7 @@ internal fun TorrentOperationDetailCard(
     detailProperties: TorrentProperties?,
     detailFiles: List<TorrentFileInfo>,
     detailTrackers: List<TorrentTracker>,
+    detailPeers: List<TorrentPeer>,
     magnetUri: String,
     categoryOptions: List<String>,
     tagOptions: List<String>,
@@ -181,6 +273,7 @@ internal fun TorrentOperationDetailCard(
     onCopyTracker: (TorrentTracker) -> Unit,
     onEditTracker: (TorrentTracker, String) -> Unit,
     onDeleteTracker: (TorrentTracker) -> Unit,
+    onSetFilePriority: (List<Int>, FilePriority) -> Unit,
 ) {
     var showDeleteDialog by remember(torrent.hash) { mutableStateOf(false) }
     var deleteFilesChecked by remember(torrent.hash) { mutableStateOf(false) }
@@ -192,7 +285,9 @@ internal fun TorrentOperationDetailCard(
     var tagsTextInput by remember(torrent.hash) { mutableStateOf(torrent.tags) }
     var downloadLimitText by remember(torrent.hash) { mutableStateOf("") }
     var uploadLimitText by remember(torrent.hash) { mutableStateOf("") }
-    var ratioText by remember(torrent.hash) { mutableStateOf(formatRatio(torrent.ratio)) }
+    // Pre-fill the torrent's ratio *limit*. (It used to show the current share
+    // ratio, so pressing Apply set the limit to whatever ratio it had right now.)
+    var ratioText by remember(torrent.hash) { mutableStateOf(ratioLimitInputText(torrent.ratioLimit)) }
     var selectedTab by rememberSaveable(torrent.hash) { mutableIntStateOf(0) }
     var trackersPasskeyVisible by rememberSaveable(torrent.hash) { mutableStateOf(false) }
     var editingTracker by remember(torrent.hash) { mutableStateOf<TorrentTracker?>(null) }
@@ -205,12 +300,6 @@ internal fun TorrentOperationDetailCard(
         val up = detailProperties?.uploadLimit ?: 0L
         downloadLimitText = if (dl > 0L) (dl / 1024L).toString() else ""
         uploadLimitText = if (up > 0L) (up / 1024L).toString() else ""
-    }
-    LaunchedEffect(torrent.hash, detailProperties?.shareRatio) {
-        val ratio = detailProperties?.shareRatio
-        if (ratio != null && ratio >= 0.0 && ratio.isFinite()) {
-            ratioText = formatRatio(ratio)
-        }
     }
 
     val fileTree = remember(torrent.hash, detailFiles) { buildTorrentFileTree(detailFiles) }
@@ -228,6 +317,11 @@ internal fun TorrentOperationDetailCard(
 
     val effectiveState = effectiveTorrentState(torrent)
     val paused = isPausedState(effectiveState)
+    val requestDelete = {
+        deleteFilesChecked = deleteFilesDefault ||
+            (deleteFilesWhenNoSeeders && torrent.seeders <= 0)
+        showDeleteDialog = true
+    }
     val peerOverviewItems = listOf(
         stringResource(R.string.detail_peer_seeders_label) to
             stringResource(R.string.detail_peer_seeders_value, torrent.seeders, torrent.numComplete),
@@ -236,53 +330,67 @@ internal fun TorrentOperationDetailCard(
         stringResource(R.string.detail_peer_cross_seed_label) to
             stringResource(R.string.detail_peer_cross_seed_value, crossSeedCount),
         stringResource(R.string.detail_peer_ratio_label) to formatRatio(torrent.ratio),
-        stringResource(R.string.detail_peer_activity_label) to formatActiveAgo(torrent.lastActivity),
+        stringResource(R.string.detail_peer_activity_label) to if (isActiveJustNow(torrent.lastActivity)) {
+            stringResource(R.string.active_just_now)
+        } else {
+            formatActiveAgo(torrent.lastActivity)
+        },
     )
     val hasMutableTrackers = remember(detailTrackers) {
         detailTrackers.any { tracker -> isMutableTrackerUrl(tracker.url) }
     }
 
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, qbGlassOutlineColor(defaultAlpha = 0.42f)),
-        colors = qbGlassCardColors(),
-    ) {
+    // The page itself is the surface now: no wrapping card, sections carry their own tone.
+    Box(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 text = torrent.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
 
-            TabRow(selectedTabIndex = selectedTab) {
-                listOf(
+            TorrentDetailStatusHeader(
+                torrent = torrent,
+                paused = paused,
+                isPending = isPending,
+                onPauseResume = { if (paused) onResume() else onPause() },
+                onRequestDelete = requestDelete,
+            )
+
+            // Tabs are backed by a pager so they can also be swiped between.
+            val pagerState = rememberPagerState(initialPage = selectedTab) { 4 }
+            val tabScope = rememberCoroutineScope()
+            LaunchedEffect(pagerState.currentPage) { selectedTab = pagerState.currentPage }
+            DetailSegmentedTabs(
+                labels = listOf(
                     stringResource(R.string.tab_info),
                     stringResource(R.string.tab_trackers),
                     stringResource(R.string.tab_peers),
                     stringResource(R.string.tab_files),
-                ).forEachIndexed { index, label ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        },
-                    )
-                }
-            }
+                ),
+                selectedIndex = pagerState.currentPage,
+                onSelect = { index -> tabScope.launch { pagerState.animateScrollToPage(index) } },
+            )
 
-            when (selectedTab) {
+            HorizontalPager(
+                state = pagerState,
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.fillMaxWidth(),
+            ) { page ->
+            // Each tab emits several children; a pager page is not a Column, so
+            // without this they were drawn on top of each other (empty-looking tabs).
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+            when (page) {
                 0 -> {
                     TorrentDetailInfoTab(
                         torrent = torrent,
@@ -317,12 +425,8 @@ internal fun TorrentOperationDetailCard(
                         onSetShareRatio = { onSetShareRatio(ratioText.trim()) },
                         onReannounce = onReannounce,
                         onRecheck = onRecheck,
-                        onPauseResume = { if (paused) onResume() else onPause() },
-                        onRequestDelete = {
-                            deleteFilesChecked = deleteFilesDefault ||
-                                (deleteFilesWhenNoSeeders && torrent.seeders <= 0)
-                            showDeleteDialog = true
-                        },
+                        onApplyCategory = { option -> onSetCategory(option) },
+                        onApplyTags = { next -> onSetTags(torrent.tags, next) },
                     )
                 }
                 1 -> {
@@ -349,6 +453,8 @@ internal fun TorrentOperationDetailCard(
                 2 -> {
                     TorrentDetailPeersTab(
                         peerOverviewItems = peerOverviewItems,
+                        peers = detailPeers,
+                        detailLoading = detailLoading,
                     )
                 }
                 3 -> {
@@ -366,8 +472,12 @@ internal fun TorrentOperationDetailCard(
                                 fileBrowserPath = node.pathSegments
                             }
                         },
+                        onSetFilePriority = onSetFilePriority,
+                        actionsEnabled = !isPending,
                     )
                 }
+            }
+            }
             }
         }
     }
@@ -407,6 +517,51 @@ internal fun TorrentOperationDetailCard(
             onDeleteTracker(tracker)
         },
     )
+}
+
+@Composable
+private fun DetailSegmentedTabs(
+    labels: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))
+            .padding(3.dp),
+    ) {
+        labels.forEachIndexed { index, label ->
+            val selected = index == selectedIndex
+            val segmentColor by animateColorAsState(
+                targetValue = if (selected) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent,
+                animationSpec = tween(durationMillis = 180),
+                label = "detailTabSegment",
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(segmentColor)
+                    .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) })
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
 }
 
 internal enum class TorrentDetailPrimaryAction {
@@ -456,235 +611,418 @@ private fun TorrentDetailInfoTab(
     onSetShareRatio: () -> Unit,
     onReannounce: () -> Unit,
     onRecheck: () -> Unit,
-    onPauseResume: () -> Unit,
-    onRequestDelete: () -> Unit,
+    onApplyCategory: (String) -> Unit,
+    onApplyTags: (String) -> Unit,
 ) {
+    // Settings read as a list; tapping a row opens a focused editor instead of
+    // keeping a text field + button pair inline for every property.
+    var editing by remember(torrent.hash) { mutableStateOf<TorrentInfoEditField?>(null) }
+    val actionsEnabled = !isPending && torrent.hash.isNotBlank()
+    val unlimited = stringResource(R.string.limit_unlimited)
+    val speedLimitSummary = if (downloadLimitText.isBlank() && uploadLimitText.isBlank()) {
+        unlimited
+    } else {
+        "↓ ${downloadLimitText.ifBlank { "∞" }}  ↑ ${uploadLimitText.ifBlank { "∞" }} KB/s"
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            stringResource(R.string.detail_section_basic),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        DetailReadonlyActionRow(
-            label = stringResource(R.string.detail_hash_label),
-            value = torrent.hash.ifBlank { "-" },
-            actionText = stringResource(R.string.copy),
-            enabled = !isPending && torrent.hash.isNotBlank(),
-            onAction = onCopyHash,
-        )
-        DetailReadonlyActionRow(
-            label = stringResource(R.string.detail_magnet_label),
-            value = magnetUri.ifBlank { "-" },
-            actionText = stringResource(R.string.copy),
-            enabled = !isPending && magnetUri.isNotBlank(),
-            onAction = onCopyMagnet,
-        )
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            contentPadding = PaddingValues(0.dp),
-        ) {
-            items(
-                items = torrentDetailPrimaryActions(capabilities),
-                key = { action -> action.name },
-            ) { action ->
-                val accentColor = when (action) {
-                    TorrentDetailPrimaryAction.ExportTorrent -> MaterialTheme.colorScheme.secondary
-                    TorrentDetailPrimaryAction.Reannounce -> Color(0xFF4C8DFF)
-                    TorrentDetailPrimaryAction.Recheck -> Color(0xFFF3A53C)
-                }
-                val label = when (action) {
-                    TorrentDetailPrimaryAction.ExportTorrent -> stringResource(R.string.detail_export_torrent)
-                    TorrentDetailPrimaryAction.Reannounce -> stringResource(R.string.detail_reannounce)
-                    TorrentDetailPrimaryAction.Recheck -> stringResource(R.string.detail_recheck)
-                }
-                val clickAction = when (action) {
-                    TorrentDetailPrimaryAction.ExportTorrent -> onExportTorrent
-                    TorrentDetailPrimaryAction.Reannounce -> onReannounce
-                    TorrentDetailPrimaryAction.Recheck -> onRecheck
-                }
-                DetailInlineActionButton(
-                    text = label,
-                    enabled = !isPending && torrent.hash.isNotBlank(),
-                    accentColor = accentColor,
-                    onClick = clickAction,
+        DetailListGroup {
+            DetailListRow(
+                label = stringResource(R.string.detail_hash_label),
+                value = torrent.hash.ifBlank { "-" },
+                monoValue = true,
+                trailingIcon = Icons.Outlined.ContentCopy,
+                trailingDescription = stringResource(R.string.copy),
+                enabled = actionsEnabled,
+                onClick = onCopyHash,
+            )
+            DetailListDivider()
+            DetailListRow(
+                label = stringResource(R.string.detail_magnet_label),
+                value = magnetUri.ifBlank { "-" },
+                monoValue = true,
+                trailingIcon = Icons.Outlined.ContentCopy,
+                trailingDescription = stringResource(R.string.copy),
+                enabled = !isPending && magnetUri.isNotBlank(),
+                onClick = onCopyMagnet,
+            )
+        }
+
+        DetailListGroup {
+            if (capabilities.supportsRename) {
+                DetailListRow(
+                    label = stringResource(R.string.detail_section_name),
+                    value = torrent.name,
+                    enabled = !isPending,
+                    onClick = {
+                        onRenameTextChange(torrent.name)
+                        editing = TorrentInfoEditField.Name
+                    },
+                )
+                DetailListDivider()
+            }
+            DetailListRow(
+                label = stringResource(R.string.detail_section_path),
+                value = locationText.ifBlank { "-" },
+                enabled = !isPending,
+                onClick = { editing = TorrentInfoEditField.Path },
+            )
+            if (capabilities.supportsCategories) {
+                DetailListDivider()
+                DetailListRow(
+                    label = stringResource(R.string.detail_section_category),
+                    value = torrent.category.ifBlank { stringResource(R.string.no_category) },
+                    enabled = !isPending,
+                    onClick = {
+                        onCategoryTextChange(torrent.category)
+                        editing = TorrentInfoEditField.Category
+                    },
+                )
+            }
+            DetailListDivider()
+            DetailListRow(
+                label = stringResource(R.string.detail_section_tags),
+                value = torrent.tags.ifBlank { stringResource(R.string.no_tags) },
+                enabled = !isPending,
+                onClick = {
+                    onTagsTextChange(torrent.tags)
+                    editing = TorrentInfoEditField.Tags
+                },
+            )
+            if (capabilities.supportsPerTorrentSpeedLimit) {
+                DetailListDivider()
+                DetailListRow(
+                    label = stringResource(R.string.detail_section_speed_limit),
+                    value = speedLimitSummary,
+                    enabled = !isPending,
+                    onClick = { editing = TorrentInfoEditField.SpeedLimit },
+                )
+            }
+            if (capabilities.supportsShareRatio) {
+                DetailListDivider()
+                DetailListRow(
+                    label = stringResource(R.string.detail_section_ratio),
+                    value = ratioText.ifBlank { "-" },
+                    enabled = !isPending,
+                    onClick = { editing = TorrentInfoEditField.Ratio },
                 )
             }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
-        if (capabilities.supportsRename) {
-            Text(
-                stringResource(R.string.detail_section_name),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ActionInputRow(
-                label = stringResource(R.string.detail_new_name_label),
-                value = renameText,
-                onValueChange = onRenameTextChange,
-                actionText = stringResource(R.string.detail_action_change),
-                enabled = !isPending,
-                onAction = onRename,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
-        }
-        Text(
-            stringResource(R.string.detail_section_path),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = stringResource(R.string.detail_set_path_hint),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        ActionInputRow(
-            label = stringResource(R.string.detail_save_path_label),
-            value = locationText,
-            onValueChange = onLocationTextChange,
-            actionText = stringResource(R.string.detail_action_change),
-            enabled = !isPending,
-            onAction = onSetLocation,
-        )
-        if (capabilities.supportsCategories) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
-            Text(
-                stringResource(R.string.detail_section_category),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (categoryOptions.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    items(categoryOptions, key = { it }) { option ->
-                        TorrentMetaChip(
-                            text = option,
-                            containerColor = if (option == categoryTextInput) Color(0xFF5D7CFF) else Color(0xFF4D4D4D),
-                            contentColor = Color(0xFFEAF0FF),
-                            onClick = { onCategoryTextChange(option) },
-                        )
-                    }
-                }
-            }
-            ActionInputRow(
-                label = stringResource(R.string.detail_category_label),
-                value = categoryTextInput,
-                onValueChange = onCategoryTextChange,
-                actionText = stringResource(R.string.detail_action_change),
-                enabled = !isPending,
-                onAction = onSetCategory,
-            )
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
-        Text(
-            stringResource(R.string.detail_section_tags),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (tagOptions.isNotEmpty()) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                contentPadding = PaddingValues(0.dp),
-            ) {
-                items(tagOptions, key = { it }) { option ->
-                    val selected = parseTags(tagsTextInput).contains(option)
-                    TorrentMetaChip(
-                        text = option,
-                        containerColor = if (selected) Color(0xFF5D7CFF) else Color(0xFF4D4D4D),
-                        contentColor = Color(0xFFEAF0FF),
-                        onClick = { onTagsTextChange(toggleTag(tagsTextInput, option)) },
+
+        val primaryActions = torrentDetailPrimaryActions(capabilities)
+        if (primaryActions.isNotEmpty()) {
+            DetailListGroup {
+                primaryActions.forEachIndexed { index, action ->
+                    if (index > 0) DetailListDivider()
+                    DetailListRow(
+                        label = when (action) {
+                            TorrentDetailPrimaryAction.ExportTorrent -> stringResource(R.string.detail_export_torrent)
+                            TorrentDetailPrimaryAction.Reannounce -> stringResource(R.string.detail_reannounce)
+                            TorrentDetailPrimaryAction.Recheck -> stringResource(R.string.detail_recheck)
+                        },
+                        value = "",
+                        trailingIcon = when (action) {
+                            TorrentDetailPrimaryAction.ExportTorrent -> Icons.Outlined.FileDownload
+                            TorrentDetailPrimaryAction.Reannounce -> Icons.Outlined.Campaign
+                            TorrentDetailPrimaryAction.Recheck -> Icons.AutoMirrored.Outlined.FactCheck
+                        },
+                        trailingDescription = null,
+                        enabled = actionsEnabled,
+                        onClick = when (action) {
+                            TorrentDetailPrimaryAction.ExportTorrent -> onExportTorrent
+                            TorrentDetailPrimaryAction.Reannounce -> onReannounce
+                            TorrentDetailPrimaryAction.Recheck -> onRecheck
+                        },
                     )
                 }
             }
         }
-        ActionInputRow(
-            label = stringResource(R.string.detail_tags_label),
-            value = tagsTextInput,
-            onValueChange = onTagsTextChange,
-            actionText = stringResource(R.string.detail_action_change),
-            enabled = !isPending,
-            onAction = onSetTags,
-        )
-        if (capabilities.supportsPerTorrentSpeedLimit) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
-            Text(
-                stringResource(R.string.detail_section_speed_limit),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+    }
+
+    when (editing) {
+        TorrentInfoEditField.Name -> DetailEditDialog(
+            title = stringResource(R.string.detail_section_name),
+            confirmText = stringResource(R.string.detail_action_change),
+            onDismiss = { editing = null },
+            onConfirm = {
+                editing = null
+                onRename()
+            },
+        ) {
+            DetailEditField(
+                value = renameText,
+                onValueChange = onRenameTextChange,
+                label = stringResource(R.string.detail_new_name_label),
+                singleLine = false,
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = downloadLimitText,
-                    onValueChange = onDownloadLimitTextChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.detail_download_kb_label)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    enabled = !isPending,
-                )
-                OutlinedTextField(
-                    value = uploadLimitText,
-                    onValueChange = onUploadLimitTextChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.detail_upload_kb_label)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    enabled = !isPending,
-                )
-                TextButton(
-                    onClick = onSetSpeedLimit,
-                    enabled = !isPending,
-                    modifier = Modifier.background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(8.dp),
-                    ),
-                ) {
-                    Text(stringResource(R.string.detail_action_apply))
-                }
-            }
         }
-        if (capabilities.supportsShareRatio) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
+
+        TorrentInfoEditField.Path -> DetailEditDialog(
+            title = stringResource(R.string.detail_section_path),
+            confirmText = stringResource(R.string.detail_action_change),
+            onDismiss = { editing = null },
+            onConfirm = {
+                editing = null
+                onSetLocation()
+            },
+        ) {
             Text(
-                stringResource(R.string.detail_section_ratio),
-                style = MaterialTheme.typography.labelSmall,
+                text = stringResource(R.string.detail_set_path_hint),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            ActionInputRow(
-                label = stringResource(R.string.detail_ratio_label),
+            DetailEditField(
+                value = locationText,
+                onValueChange = onLocationTextChange,
+                label = stringResource(R.string.detail_save_path_label),
+            )
+        }
+
+        TorrentInfoEditField.Category -> DetailEditDialog(
+            title = stringResource(R.string.detail_section_category),
+            confirmText = stringResource(R.string.detail_action_change),
+            onDismiss = { editing = null },
+            onConfirm = {
+                editing = null
+                onSetCategory()
+            },
+        ) {
+            if (categoryOptions.isNotEmpty()) {
+                DetailOptionPills(
+                    options = categoryOptions,
+                    isSelected = { it == categoryTextInput },
+                    onToggle = { option ->
+                        onCategoryTextChange(if (option == categoryTextInput) "" else option)
+                    },
+                )
+            }
+            DetailEditField(
+                value = categoryTextInput,
+                onValueChange = onCategoryTextChange,
+                label = stringResource(R.string.detail_category_label),
+            )
+        }
+
+        TorrentInfoEditField.Tags -> DetailEditDialog(
+            title = stringResource(R.string.detail_section_tags),
+            confirmText = stringResource(R.string.detail_action_change),
+            onDismiss = { editing = null },
+            onConfirm = {
+                editing = null
+                onSetTags()
+            },
+        ) {
+            if (tagOptions.isNotEmpty()) {
+                val selectedTags = parseTags(tagsTextInput)
+                DetailOptionPills(
+                    options = tagOptions,
+                    isSelected = { it in selectedTags },
+                    onToggle = { option -> onTagsTextChange(toggleTag(tagsTextInput, option)) },
+                )
+            }
+            DetailEditField(
+                value = tagsTextInput,
+                onValueChange = onTagsTextChange,
+                label = stringResource(R.string.detail_tags_label),
+            )
+        }
+
+        TorrentInfoEditField.SpeedLimit -> DetailEditDialog(
+            title = stringResource(R.string.detail_section_speed_limit),
+            confirmText = stringResource(R.string.detail_action_apply),
+            onDismiss = { editing = null },
+            onConfirm = {
+                editing = null
+                onSetSpeedLimit()
+            },
+        ) {
+            DetailEditField(
+                value = downloadLimitText,
+                onValueChange = onDownloadLimitTextChange,
+                label = stringResource(R.string.detail_download_kb_label),
+                keyboardType = KeyboardType.Number,
+            )
+            DetailEditField(
+                value = uploadLimitText,
+                onValueChange = onUploadLimitTextChange,
+                label = stringResource(R.string.detail_upload_kb_label),
+                keyboardType = KeyboardType.Number,
+            )
+        }
+
+        TorrentInfoEditField.Ratio -> DetailEditDialog(
+            title = stringResource(R.string.detail_section_ratio),
+            confirmText = stringResource(R.string.detail_action_apply),
+            onDismiss = { editing = null },
+            onConfirm = {
+                editing = null
+                onSetShareRatio()
+            },
+        ) {
+            DetailEditField(
                 value = ratioText,
                 onValueChange = onRatioTextChange,
-                actionText = stringResource(R.string.detail_action_apply),
-                enabled = !isPending,
-                onAction = onSetShareRatio,
+                label = stringResource(R.string.detail_ratio_label),
+                keyboardType = KeyboardType.Decimal,
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            TextButton(
-                onClick = onPauseResume,
-                enabled = !isPending,
-                modifier = Modifier
-                    .weight(1f)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), RoundedCornerShape(8.dp)),
-            ) {
-                Text(if (paused) stringResource(R.string.resume) else stringResource(R.string.pause))
+
+        null -> Unit
+    }
+}
+
+private enum class TorrentInfoEditField { Name, Path, Category, Tags, SpeedLimit, Ratio }
+
+@Composable
+private fun DetailListGroup(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun DetailListDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 14.dp),
+        thickness = 1.dp,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+    )
+}
+
+@Composable
+private fun DetailListRow(
+    label: String,
+    value: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    monoValue: Boolean = false,
+    trailingIcon: ImageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+    trailingDescription: String? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f),
+            style = if (monoValue) QbNumberStyles.small else MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Icon(
+            imageVector = trailingIcon,
+            contentDescription = trailingDescription,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 0.7f else 0.3f),
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
+private fun DetailEditDialog(
+    title: String,
+    confirmText: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = PanelShape,
+        containerColor = qbGlassStrongContainerColor(),
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                content()
             }
-            TextButton(
-                onClick = onRequestDelete,
-                enabled = !isPending,
-                modifier = Modifier
-                    .weight(1f)
-                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.14f), RoundedCornerShape(8.dp)),
-            ) {
-                Text(stringResource(R.string.delete))
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(confirmText) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun DetailEditField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    singleLine: Boolean = true,
+    keyboardType: KeyboardType = KeyboardType.Text,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = singleLine,
+        shape = RoundedCornerShape(12.dp),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DetailOptionPills(
+    options: List<String>,
+    isSelected: (String) -> Boolean,
+    onToggle: (String) -> Unit,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { option ->
+            key(option) {
+                val selected = isSelected(option)
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(
+                            if (selected) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            },
+                        )
+                        .clickable { onToggle(option) }
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                ) {
+                    Text(
+                        text = option,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.surface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
             }
         }
     }
@@ -840,14 +1178,14 @@ private fun TorrentDetailTrackersTab(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        TorrentMetaChip(
+        Text(
             text = pluralStringResource(
                 R.plurals.detail_tracker_count,
                 detailTrackers.size,
                 detailTrackers.size,
             ),
-            containerColor = Color(0xFF6C3FD3),
-            contentColor = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (hasMutableTrackers) {
             TextButton(onClick = onTogglePasskeyVisibility) {
@@ -869,8 +1207,9 @@ private fun TorrentDetailTrackersTab(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    } else {
-        detailTrackers.forEach { tracker ->
+    } else DetailListGroup {
+        detailTrackers.forEachIndexed { index, tracker ->
+            if (index > 0) DetailListDivider()
             val trackerUrl = tracker.url
             val isMutableTracker = isMutableTrackerUrl(trackerUrl)
             val canMutateTracker =
@@ -909,11 +1248,137 @@ private fun TorrentDetailTrackersTab(
 @Composable
 private fun TorrentDetailPeersTab(
     peerOverviewItems: List<Pair<String, String>>,
+    peers: List<TorrentPeer>,
+    detailLoading: Boolean,
 ) {
-    TorrentUnifiedInfoPanel(
-        items = peerOverviewItems,
-        style = TorrentUnifiedInfoPanelStyle.Summary,
-    )
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        DetailListGroup {
+            peerOverviewItems.forEachIndexed { index, (label, value) ->
+                if (index > 0) DetailListDivider()
+                DetailValueRow(label = label, value = value)
+            }
+        }
+        // The connected peers themselves (the tab used to show only the counts).
+        Text(
+            text = stringResource(R.string.detail_peers_connected_fmt, peers.size),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+        )
+        if (peers.isEmpty() && !detailLoading) {
+            Text(
+                text = stringResource(R.string.detail_peers_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (peers.isNotEmpty()) {
+            DetailListGroup {
+                peers.take(MAX_LISTED_PEERS).forEachIndexed { index, peer ->
+                    if (index > 0) DetailListDivider()
+                    TorrentPeerRow(peer)
+                }
+            }
+        }
+    }
+}
+
+private const val MAX_LISTED_PEERS = 100
+
+@Composable
+private fun TorrentPeerRow(peer: TorrentPeer) {
+    val idle = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (peer.countryCode.isNotBlank()) {
+                Text(
+                    text = peer.countryCode,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                )
+            }
+            Text(
+                text = peer.address,
+                modifier = Modifier.weight(1f),
+                style = QbNumberStyles.small,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${(peer.progress * 100).toInt()}%",
+                style = QbNumberStyles.small,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = peer.client.ifBlank { "-" },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "↑ ${formatSpeed(peer.uploadSpeed)}",
+                style = QbNumberStyles.small,
+                fontSize = 11.sp,
+                color = if (peer.uploadSpeed > 0L) QbTransferColors.Upload else idle,
+            )
+            Text(
+                text = "↓ ${formatSpeed(peer.downloadSpeed)}",
+                style = QbNumberStyles.small,
+                fontSize = 11.sp,
+                color = if (peer.downloadSpeed > 0L) QbTransferColors.Download else idle,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailValueRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable
@@ -925,6 +1390,8 @@ private fun TorrentDetailFilesTab(
     onOpenRoot: () -> Unit,
     onOpenPathSegment: (Int) -> Unit,
     onOpenDirectory: (TorrentFileTreeNode) -> Unit,
+    onSetFilePriority: (List<Int>, FilePriority) -> Unit = { _, _ -> },
+    actionsEnabled: Boolean = true,
 ) {
     if (detailLoading) {
         Text(
@@ -937,38 +1404,40 @@ private fun TorrentDetailFilesTab(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     } else {
+        // Breadcrumb as quiet text; the current folder is the only bright segment.
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            contentPadding = PaddingValues(0.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            contentPadding = PaddingValues(horizontal = 4.dp),
         ) {
             item {
-                TorrentMetaChip(
+                FileBreadcrumb(
                     text = stringResource(R.string.detail_files_root),
-                    containerColor = if (fileBrowserPath.isEmpty()) Color(0xFF4469FF) else Color(0xFF2E3340),
-                    contentColor = Color.White,
+                    current = fileBrowserPath.isEmpty(),
                     onClick = onOpenRoot,
                 )
             }
             fileBrowserPath.forEachIndexed { index, segment ->
                 item {
-                    Text(
-                        text = "/",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 5.dp),
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(16.dp),
                     )
                 }
                 item {
-                    TorrentMetaChip(
+                    FileBreadcrumb(
                         text = segment,
-                        containerColor = if (index == fileBrowserPath.lastIndex) Color(0xFF5D7CFF) else Color(0xFF2E3340),
-                        contentColor = Color.White,
+                        current = index == fileBrowserPath.lastIndex,
                         onClick = { onOpenPathSegment(index) },
                     )
                 }
             }
         }
-        fileBrowserSelection.node.children.forEach { node ->
+        DetailListGroup {
+          fileBrowserSelection.node.children.forEachIndexed { index, node ->
+            if (index > 0) DetailListDivider()
             TorrentFileBrowserNodeCard(
                 node = node,
                 onOpenDirectory = {
@@ -976,9 +1445,27 @@ private fun TorrentDetailFilesTab(
                         onOpenDirectory(node)
                     }
                 },
+                actionsEnabled = actionsEnabled,
+                onSetPriority = { priority -> onSetFilePriority(node.fileIndexes, priority) },
             )
+          }
         }
     }
+}
+
+@Composable
+private fun FileBreadcrumb(text: String, current: Boolean, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = if (current) FontWeight.Medium else FontWeight.Normal,
+        color = if (current) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+    )
 }
 
 internal data class TorrentFileTreeNode(
@@ -991,6 +1478,10 @@ internal data class TorrentFileTreeNode(
     val orderIndex: Int,
     val pathSegments: List<String>,
     val children: List<TorrentFileTreeNode> = emptyList(),
+    // Backend file indexes under this node (one for a file, all descendants for a
+    // folder) and their priorities; null priority means the files disagree.
+    val fileIndexes: List<Int> = emptyList(),
+    val priority: FilePriority? = null,
 )
 
 internal data class TorrentFileBrowserSelection(
@@ -1009,6 +1500,26 @@ private class MutableTorrentFileTreeNode(
     var size: Long = 0L
     var weightedProgress: Double = 0.0
     var fileCount: Int = 0
+    val fileIndexes = mutableListOf<Int>()
+    val priorities = mutableSetOf<FilePriority>()
+}
+
+/** Text for the ratio-limit input: blank when the global limit applies or it is unknown. */
+/**
+ * Activity within the last few seconds reads better as "just now" than "0s".
+ * A timestamp slightly in the future (server clock ahead of the phone) counts too.
+ */
+internal fun isActiveJustNow(lastActivitySeconds: Long, nowMillis: Long = System.currentTimeMillis()): Boolean {
+    if (lastActivitySeconds <= 0L) return false
+    return (nowMillis / 1000L) - lastActivitySeconds <= 4L
+}
+
+internal fun ratioLimitInputText(ratioLimit: Double?): String {
+    return when {
+        ratioLimit == null || !ratioLimit.isFinite() || ratioLimit <= -2.0 -> ""
+        ratioLimit < 0.0 -> "-1"
+        else -> formatRatio(ratioLimit)
+    }
 }
 
 internal fun buildTorrentFileTree(files: List<TorrentFileInfo>): TorrentFileTreeNode {
@@ -1026,10 +1537,14 @@ internal fun buildTorrentFileTree(files: List<TorrentFileInfo>): TorrentFileTree
         if (segments.isEmpty()) return@forEachIndexed
         val clampedProgress = file.progress.coerceIn(0f, 1f).toDouble()
         val weightedProgress = file.size.toDouble() * clampedProgress
+        val fileIndex = if (file.index >= 0) file.index else fallbackIndex
+        val filePriority = FilePriority.fromQbValue(file.priority)
         var current = root
         current.size += file.size
         current.weightedProgress += weightedProgress
         current.fileCount += 1
+        current.fileIndexes += fileIndex
+        current.priorities += filePriority
         segments.forEachIndexed { index, segment ->
             val isFile = index == segments.lastIndex
             val currentPathSegments = segments.take(index + 1)
@@ -1052,6 +1567,8 @@ internal fun buildTorrentFileTree(files: List<TorrentFileInfo>): TorrentFileTree
                 child.weightedProgress += weightedProgress
                 child.fileCount += 1
             }
+            child.fileIndexes += fileIndex
+            child.priorities += filePriority
             current = child
         }
     }
@@ -1074,6 +1591,8 @@ private fun MutableTorrentFileTreeNode.toImmutableNode(): TorrentFileTreeNode {
         fileCount = fileCount.coerceAtLeast(if (isDirectory) 0 else 1),
         orderIndex = orderIndex,
         pathSegments = pathSegments,
+        fileIndexes = fileIndexes.toList(),
+        priority = priorities.singleOrNull(),
         children = children.values
             .sortedWith(
                 compareBy<MutableTorrentFileTreeNode> { !it.isDirectory }
@@ -1117,49 +1636,38 @@ internal fun resolveTorrentFileBrowserSelection(
 private fun TorrentFileBrowserNodeCard(
     node: TorrentFileTreeNode,
     onOpenDirectory: () -> Unit,
+    actionsEnabled: Boolean = true,
+    onSetPriority: (FilePriority) -> Unit = {},
 ) {
-    OutlinedCard(
+    val complete = node.progress >= 1f
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = node.isDirectory, onClick = onOpenDirectory),
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, qbGlassOutlineColor(defaultAlpha = 0.28f)),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = qbGlassSubtleContainerColor(),
-        ),
+            .clickable(enabled = node.isDirectory, onClick = onOpenDirectory)
+            .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = if (node.isDirectory) Icons.Outlined.Folder else Icons.AutoMirrored.Outlined.InsertDriveFile,
+            contentDescription = stringResource(
+                if (node.isDirectory) R.string.detail_files_folder_chip else R.string.detail_files_file_chip,
+            ),
+            tint = if (node.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                TorrentMetaChip(
-                    text = stringResource(
-                        if (node.isDirectory) {
-                            R.string.detail_files_folder_chip
-                        } else {
-                            R.string.detail_files_file_chip
-                        }
-                    ),
-                    containerColor = if (node.isDirectory) Color(0xFF2D74F7) else Color(0xFF3E4656),
-                    contentColor = Color.White,
-                )
-                Text(
-                    text = node.name,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = if (node.isDirectory) FontWeight.SemiBold else FontWeight.Medium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Text(
+                text = node.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (node.isDirectory) FontWeight.Medium else FontWeight.Normal,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 text = if (node.isDirectory) {
                     pluralStringResource(
@@ -1179,103 +1687,75 @@ private fun TorrentFileBrowserNodeCard(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            LinearProgressIndicator(
-                progress = { node.progress.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-                color = if (node.isDirectory) Color(0xFF4C8DFF) else MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            if (!complete) {
+                LinearProgressIndicator(
+                    progress = { node.progress.coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp),
+                    color = QbTransferColors.Download,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    strokeCap = StrokeCap.Round,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
+                )
+            }
+        }
+        if (node.fileIndexes.isNotEmpty()) {
+            FilePriorityMenu(
+                priority = node.priority,
+                enabled = actionsEnabled,
+                onSelect = onSetPriority,
+            )
+        }
+        if (node.isDirectory) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(18.dp),
             )
         }
     }
 }
 
 @Composable
-private fun DetailInlineActionButton(
-    text: String,
-    enabled: Boolean,
-    accentColor: Color,
-    onClick: () -> Unit,
-) {
-    TextButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.background(
-            color = accentColor.copy(alpha = 0.14f),
-            shape = RoundedCornerShape(8.dp),
-        ),
-    ) {
-        Text(
-            text = text,
-            color = accentColor,
-        )
-    }
+private fun filePriorityLabel(priority: FilePriority?): String = when (priority) {
+    FilePriority.SKIP -> stringResource(R.string.file_priority_skip)
+    FilePriority.NORMAL -> stringResource(R.string.file_priority_normal)
+    FilePriority.HIGH -> stringResource(R.string.file_priority_high)
+    null -> stringResource(R.string.file_priority_mixed)
 }
 
+/** Priority chip with a menu; on a folder it applies to every file inside. */
 @Composable
-internal fun ActionInputRow(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    actionText: String,
+private fun FilePriorityMenu(
+    priority: FilePriority?,
     enabled: Boolean,
-    onAction: () -> Unit,
+    onSelect: (FilePriority) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            label = { Text(label) },
-            enabled = enabled,
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TorrentMetaChip(
+            text = filePriorityLabel(priority),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            contentColor = when (priority) {
+                FilePriority.SKIP -> MaterialTheme.colorScheme.outline
+                FilePriority.HIGH -> Color(0xFFE0A458)
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            onClick = if (enabled) ({ expanded = true }) else null,
         )
-        TextButton(
-            onClick = onAction,
-            enabled = enabled,
-            modifier = Modifier.background(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                shape = RoundedCornerShape(8.dp),
-            ),
-        ) {
-            Text(actionText)
-        }
-    }
-}
-
-@Composable
-internal fun DetailReadonlyActionRow(
-    label: String,
-    value: String,
-    actionText: String,
-    enabled: Boolean,
-    onAction: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            readOnly = true,
-            label = { Text(label) },
-        )
-        TextButton(
-            onClick = onAction,
-            enabled = enabled,
-            modifier = Modifier.background(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                shape = RoundedCornerShape(8.dp),
-            ),
-        ) {
-            Text(actionText)
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            FilePriority.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(filePriorityLabel(option)) },
+                    onClick = {
+                        expanded = false
+                        if (option != priority) onSelect(option)
+                    },
+                )
+            }
         }
     }
 }

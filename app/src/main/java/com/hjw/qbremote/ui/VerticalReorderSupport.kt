@@ -415,6 +415,26 @@ private fun <T> calculateVerticalReorderSiblingOffset(
     )
 }
 
+/**
+ * The order [items] would have if the active drag were dropped at its current
+ * target slot. Presentation that depends on stack position (which card is the
+ * expanded front card, z-order) must follow this projected order during a drag;
+ * otherwise the stack only "becomes valid" at drop time and visibly snaps.
+ * Falls back to [items] when there is no drag or the session is stale.
+ */
+internal fun <T> resolveProjectedReorderOrder(
+    items: List<T>,
+    dragSession: VerticalReorderSession<T>?,
+    draggingTargetIndex: Int,
+): List<T> {
+    if (dragSession == null || dragSession.items != items) return items
+    return moveItemInList(
+        items = items,
+        fromIndex = dragSession.startIndex,
+        toIndex = draggingTargetIndex,
+    )
+}
+
 private fun <T> moveItemInList(
     items: List<T>,
     fromIndex: Int,

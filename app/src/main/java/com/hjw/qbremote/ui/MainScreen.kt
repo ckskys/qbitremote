@@ -1,4 +1,10 @@
 package com.hjw.qbremote.ui
+import kotlinx.coroutines.CancellationException
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
@@ -57,6 +63,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -117,6 +124,8 @@ fun MainScreen(viewModel: MainViewModel) {
     val serverProfileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dashboardCardManagerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val localContext = LocalContext.current
+    // Configuration-aware (follows in-app language changes), unlike localContext.getString.
+    val localResources = LocalResources.current
     val exportTorrentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/x-bittorrent"),
     ) { uri ->
@@ -131,11 +140,11 @@ fun MainScreen(viewModel: MainViewModel) {
                 } ?: error("Unable to open export target.")
             }.onSuccess {
                 scope.launch {
-                    snackbarHostState.showSnackbar(localContext.getString(R.string.detail_export_success))
+                    snackbarHostState.showSnackbar(localResources.getString(R.string.detail_export_success))
                 }
             }.onFailure {
                 scope.launch {
-                    snackbarHostState.showSnackbar(localContext.getString(R.string.detail_export_failed))
+                    snackbarHostState.showSnackbar(localResources.getString(R.string.detail_export_failed))
                 }
             }
         }
@@ -267,11 +276,19 @@ fun MainScreen(viewModel: MainViewModel) {
         !state.settings.hasSeenServerStackReorderHint
     val showDashboardSwipeHint = selectedServerProfile != null &&
         !state.settings.hasSeenServerDashboardSwipeHint
+    // One hint at a time: both stacked took about a third of the screen.
     val showDashboardCardHint = selectedServerProfile != null &&
+        !showDashboardSwipeHint &&
         !state.settings.hasSeenServerDashboardCardHint
     val dashboardListState = rememberLazyListState()
     val serverDashboardListState = rememberLazyListState()
     val torrentListState = rememberLazyListState()
+    // Torrent list multi-select (non-empty = selection mode) and the pending
+    // delete confirmation shared by swipe-to-delete and batch delete.
+    var selectedTorrentHashes by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
+    var pendingDeleteHashes by remember { mutableStateOf(listOf<String>()) }
+    var pendingDeleteFiles by remember { mutableStateOf(false) }
     val torrentDetailListState = rememberLazyListState()
     val settingsListState = rememberLazyListState()
     var localDashboardCardOrder by remember(selectedServerProfile?.id, selectedDashboardBackendType) {
@@ -357,7 +374,7 @@ fun MainScreen(viewModel: MainViewModel) {
         if (text.isBlank()) return
         clipboardManager.setText(AnnotatedString(text))
         scope.launch {
-            snackbarHostState.showSnackbar(localContext.getString(successMessageRes))
+            snackbarHostState.showSnackbar(localResources.getString(successMessageRes))
         }
     }
 
@@ -604,6 +621,9 @@ fun MainScreen(viewModel: MainViewModel) {
                 serverReorder.clear()
                 serverDropJob = null
             }
+            // Dismiss the reorder hint only once the gesture is over: removing it
+            // at drag start shifted the whole stack up under the user's finger.
+            viewModel.markServerStackReorderHintSeen()
             viewModel.setServerStackReorderHold(false)
             if (dropPlan.shouldCommitReorder) {
                 viewModel.reorderServerProfiles(dropPlan.reorderedIds)
@@ -720,12 +740,92 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
-    BackHandler(enabled = currentPage != AppPage.DASHBOARD) {
-        backToPreviousPage()
+    // Predictive back: while the system back gesture is in progress the current
+    // page follows it (see the graphicsLayer on the page container); releasing
+    // navigates back, cancelling restores the page.
+    PredictiveBackHandler(enabled = currentPage != AppPage.DASHBOARD) { backEvents ->
+        try {
+            backEvents.collect { event -> predictiveBackProgress = event.progress }
+            predictiveBackProgress = 0f
+            backToPreviousPage()
+        } catch (cancelled: CancellationException) {
+            predictiveBackProgress = 0f
+            throw cancelled
+        }
     }
+    // Declared later, so it wins while active: Back first leaves selection mode.
+    BackHandler(enabled = selectedTorrentHashes.isNotEmpty()) {
+        selectedTorrentHashes = emptyList()
+    }
+    LaunchedEffect(currentPage) {
+        if (currentPage != AppPage.TORRENT_LIST) selectedTorrentHashes = emptyList()
+    }
+
+    fun requestDeleteTorrents(hashes: List<String>) {
+        if (hashes.isEmpty()) return
+        val targets = state.torrents.filter { it.hash in hashes }
+        pendingDeleteFiles = state.settings.deleteFilesDefault ||
+            (state.settings.deleteFilesWhenNoSeeders && targets.isNotEmpty() && targets.all { it.seeders <= 0 })
+        pendingDeleteHashes = hashes
+    }
+
+    if (pendingDeleteHashes.isNotEmpty()) {
+        ConfirmDeleteTorrentsDialog(
+            count = pendingDeleteHashes.size,
+            deleteFiles = pendingDeleteFiles,
+            onDeleteFilesChange = { pendingDeleteFiles = it },
+            onDismiss = { pendingDeleteHashes = emptyList() },
+            onConfirm = {
+                viewModel.runBatchTorrentAction(
+                    hashes = pendingDeleteHashes,
+                    action = BatchTorrentAction.DELETE,
+                    deleteFiles = pendingDeleteFiles,
+                )
+                selectedTorrentHashes = selectedTorrentHashes - pendingDeleteHashes.toSet()
+                pendingDeleteHashes = emptyList()
+            },
+        )
+    }
+
+    val torrentListSelection = TorrentListSelection(
+        selectedHashes = selectedTorrentHashes.toSet(),
+        onToggle = { hash ->
+            if (hash.isNotBlank()) {
+                selectedTorrentHashes = if (hash in selectedTorrentHashes) {
+                    selectedTorrentHashes - hash
+                } else {
+                    selectedTorrentHashes + hash
+                }
+            }
+        },
+        onSelectAll = { hashes ->
+            selectedTorrentHashes = (selectedTorrentHashes + hashes.filter { it.isNotBlank() }).distinct()
+        },
+        onExit = { selectedTorrentHashes = emptyList() },
+        onPauseSelected = {
+            viewModel.runBatchTorrentAction(selectedTorrentHashes, BatchTorrentAction.PAUSE)
+            selectedTorrentHashes = emptyList()
+        },
+        onResumeSelected = {
+            viewModel.runBatchTorrentAction(selectedTorrentHashes, BatchTorrentAction.RESUME)
+            selectedTorrentHashes = emptyList()
+        },
+        onDeleteSelected = { requestDeleteTorrents(selectedTorrentHashes) },
+        onSwipePauseResume = { torrent ->
+            if (isPausedState(effectiveTorrentState(torrent))) {
+                viewModel.resumeTorrent(torrent.hash)
+            } else {
+                viewModel.pauseTorrent(torrent.hash)
+            }
+        },
+        onSwipeDelete = { torrent -> requestDeleteTorrents(listOf(torrent.hash)) },
+    )
 
     androidx.compose.material3.ModalNavigationDrawer(
         drawerState = drawerState,
+        // The drawer belongs to the home page (only it has the menu button). On
+        // inner pages a left-edge swipe must stay the back gesture, not open it.
+        gesturesEnabled = currentPage == AppPage.DASHBOARD || drawerState.isOpen,
         drawerContent = {
             androidx.compose.material3.ModalDrawerSheet(
                 modifier = Modifier
@@ -804,6 +904,13 @@ fun MainScreen(viewModel: MainViewModel) {
                 ),
                 topBar = {
                     MainScreenTopBar(
+                        // Inside a server's pages, say which server it is.
+                        title = when (currentPage) {
+                            AppPage.SERVER_DASHBOARD -> selectedServerProfile?.name
+                            AppPage.TORRENT_LIST, AppPage.TORRENT_DETAIL ->
+                                state.serverProfiles.firstOrNull { it.id == state.activeServerProfileId }?.name
+                            else -> null
+                        },
                         currentPage = currentPage,
                         connected = state.connected,
                         isManualRefreshing = state.isManualRefreshing,
@@ -890,7 +997,6 @@ fun MainScreen(viewModel: MainViewModel) {
                                 onDismissReorderHint = viewModel::markServerStackReorderHintSeen,
                                 onStartServerStackDrag = { profileId ->
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    viewModel.markServerStackReorderHintSeen()
                                     startServerStackDrag(profileId)
                                 },
                                 onDragServerStack = ::updateServerStackDrag,
@@ -973,6 +1079,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                     isPendingAction = ::isPendingAction,
                                     onOpenDetails = ::openTorrentDetail,
                                     onOpenConnection = { openSettings() },
+                                    selection = torrentListSelection,
                                 )
                             }
 
@@ -1015,6 +1122,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                 onDeleteTracker = { hash, tracker ->
                                     viewModel.removeTracker(hash, tracker)
                                 },
+                                onSetFilePriority = viewModel::setFilePriority,
                             )
 
                             AppPage.SETTINGS -> settingsRootPageContent(
@@ -1053,9 +1161,37 @@ fun MainScreen(viewModel: MainViewModel) {
                 val animatedPageContent: @Composable () -> Unit = {
                     AnimatedContent(
                         targetState = animatedPageTarget,
+                        modifier = Modifier.graphicsLayer {
+                            val progress = predictiveBackProgress
+                            if (progress > 0f) {
+                                val scale = 1f - 0.08f * progress
+                                scaleX = scale
+                                scaleY = scale
+                                translationX = 28.dp.toPx() * progress
+                                alpha = 1f - 0.2f * progress
+                            }
+                        },
                         transitionSpec = {
-                            fadeIn(animationSpec = tween(durationMillis = 180)) togetherWith
-                                fadeOut(animationSpec = tween(durationMillis = 140))
+                            val fromDepth = pageDepth(initialState.page)
+                            val toDepth = pageDepth(targetState.page)
+                            if (fromDepth == toDepth && initialState.page == targetState.page) {
+                                // Same page re-keyed (theme / server switch): fade only.
+                                fadeIn(animationSpec = tween(durationMillis = 180)) togetherWith
+                                    fadeOut(animationSpec = tween(durationMillis = 140))
+                            } else {
+                                // Shared-axis style: deeper pages enter from the right,
+                                // going back enters from the left.
+                                val forward = toDepth >= fromDepth
+                                (
+                                    slideInHorizontally(tween(260)) { width ->
+                                        if (forward) width / 5 else -width / 5
+                                    } + fadeIn(tween(220))
+                                    ) togetherWith (
+                                    slideOutHorizontally(tween(220)) { width ->
+                                        if (forward) -width / 8 else width / 8
+                                    } + fadeOut(tween(160))
+                                    )
+                            }
                         },
                         label = "pageAnimation",
                     ) { pageState ->
@@ -1066,7 +1202,12 @@ fun MainScreen(viewModel: MainViewModel) {
                 }
 
                 if (
-                    (currentPage == AppPage.DASHBOARD || currentPage == AppPage.SERVER_DASHBOARD) &&
+                    // The torrent list is where users most expect pull-to-refresh.
+                    (
+                        currentPage == AppPage.DASHBOARD ||
+                            currentPage == AppPage.SERVER_DASHBOARD ||
+                            currentPage == AppPage.TORRENT_LIST
+                        ) &&
                     (state.connected || state.serverProfiles.isNotEmpty())
                 ) {
                     val pullRefreshState = rememberPullRefreshState(
@@ -1139,6 +1280,7 @@ fun MainScreen(viewModel: MainViewModel) {
                     serverSheetEditingProfileId = ""
                 },
                 onRequestDeleteServerProfile = ::requestDeleteServerProfile,
+                onTestServerConnection = viewModel::testServerConnection,
                 showAddTorrentSheet = showAddTorrentSheet,
                 addTorrentSheetState = addTorrentSheetState,
                 addTorrentCapabilities = state.activeCapabilities,

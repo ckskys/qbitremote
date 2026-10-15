@@ -15,7 +15,6 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
@@ -62,8 +61,13 @@ class MainActivity : AppCompatActivity() {
     ) { /* granted or not, proceed */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        LaunchThemeMirror.applyBeforeCreate(this)
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Edge-to-edge without androidx.activity's enableEdgeToEdge(): that helper
+        // still calls Window.setStatusBarColor/setNavigationBarColor (deprecated in
+        // Android 15, flagged by Play Console). Bar colors come from the theme
+        // (res/values*/themes.xml); this just lets content draw behind the bars.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         createNotificationChannel()
         requestNotificationPermissionIfNeeded()
 
@@ -98,6 +102,10 @@ class MainActivity : AppCompatActivity() {
                 AppTheme.DARK -> true
                 AppTheme.LIGHT -> false
                 AppTheme.CUSTOM -> !uiState.settings.customBackgroundToneIsLight
+            }
+
+            LaunchedEffect(darkTheme) {
+                LaunchThemeMirror.save(applicationContext, darkTheme)
             }
 
             val lifecycleOwner = LocalLifecycleOwner.current

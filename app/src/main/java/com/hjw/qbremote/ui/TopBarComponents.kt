@@ -1,5 +1,11 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.Icons
+import androidx.compose.animation.core.animateFloatAsState
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -120,10 +126,17 @@ internal fun DrawerThemeItem(
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(
-                text = if (expanded) "^" else "v",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelLarge,
+            val chevronRotation by animateFloatAsState(
+                targetValue = if (expanded) 180f else 0f,
+                label = "drawerThemeChevron",
+            )
+            Icon(
+                imageVector = Icons.Outlined.KeyboardArrowDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(20.dp)
+                    .rotate(chevronRotation),
             )
         }
 
@@ -284,6 +297,7 @@ private fun DrawerThemeChoiceItem(
 internal fun TopBrandTitle(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    title: String? = null,
 ) {
     val titleStyle = if (compact) {
         MaterialTheme.typography.titleMedium.copy(
@@ -298,7 +312,7 @@ internal fun TopBrandTitle(
         )
     }
     Text(
-        text = stringResource(R.string.app_name),
+        text = title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.app_name),
         modifier = modifier,
         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.96f),
         style = titleStyle,

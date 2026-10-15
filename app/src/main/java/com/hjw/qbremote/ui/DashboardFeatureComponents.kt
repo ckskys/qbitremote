@@ -1,14 +1,23 @@
 package com.hjw.qbremote.ui
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.draw.drawBehind
+import com.hjw.qbremote.ui.theme.QbNumberStyles
+import androidx.compose.foundation.shape.CircleShape
 import android.Manifest
+import com.hjw.qbremote.ui.theme.QbTransferColors
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.togetherWith
 import android.content.Context
 import android.content.Intent
@@ -33,6 +42,8 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -72,6 +83,7 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -476,17 +488,22 @@ internal fun ServerOverviewCard(
                     totalDownloadedText = formatBytes(transferInfo.downloadedTotal),
                     totalUploadedText = formatBytes(transferInfo.uploadedTotal),
                 )
-                LazyRow(
+                // Wraps instead of scrolling sideways: a pill cut off at the card
+                // edge ("Error 0") gave no hint that the row could be scrolled.
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    contentPadding = PaddingValues(0.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    items(statusPills, key = { it.label }) { pill ->
-                        DashboardStatusPill(
-                            label = pill.label,
-                            count = pill.count,
-                            accentColor = pill.accentColor,
-                        )
+                    statusPills.forEach { pill ->
+                        key(pill.label) {
+                            DashboardStatusPill(
+                                label = pill.label,
+                                count = pill.count,
+                                accentColor = pill.accentColor,
+                            )
+                        }
                     }
                 }
             }
@@ -545,103 +562,120 @@ private fun DashboardAggregateOverviewCard(
     aggregate: DashboardAggregateState,
     onOpenGlobalSpeedLimits: () -> Unit,
 ) {
-    OutlinedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
         shape = PanelShape,
-        border = BorderStroke(1.dp, qbGlassOutlineColor()),
         colors = qbGlassCardColors(),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Header: one quiet label line, speed-limit action tucked at the top right.
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(R.string.dashboard_server_speed_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = pluralStringResource(
-                        R.plurals.dashboard_server_speed_online_count,
-                        aggregate.totalServerCount,
-                        aggregate.totalServerCount,
-                    ),
-                    style = MaterialTheme.typography.labelSmall,
+                    text = stringResource(R.string.dashboard_server_speed_title) + " · " +
+                        pluralStringResource(
+                            R.plurals.dashboard_server_speed_online_count,
+                            aggregate.totalServerCount,
+                            aggregate.totalServerCount,
+                        ),
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-            }
-            AggregateSpeedTextLine(
-                label = stringResource(R.string.sort_upload_speed),
-                value = formatSpeed(aggregate.transferInfo.uploadSpeed),
-                accent = Color(0xFF3BBA6F),
-            )
-            AggregateSpeedTextLine(
-                label = stringResource(R.string.sort_download_speed),
-                value = formatSpeed(aggregate.transferInfo.downloadSpeed),
-                accent = Color(0xFF3990FF),
-            )
-            InlineRealtimeSpeedChart(
-                aggregate = aggregate,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
                 TextButton(onClick = onOpenGlobalSpeedLimits) {
                     Text(
                         text = stringResource(R.string.global_speed_limit_action),
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                AggregateSpeedFigure(
+                    label = stringResource(R.string.sort_upload_speed),
+                    value = formatSpeed(aggregate.transferInfo.uploadSpeed),
+                    accent = QbTransferColors.Upload,
+                    modifier = Modifier.weight(1f),
+                )
+                AggregateSpeedFigure(
+                    label = stringResource(R.string.sort_download_speed),
+                    value = formatSpeed(aggregate.transferInfo.downloadSpeed),
+                    accent = QbTransferColors.Download,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            InlineRealtimeSpeedChart(
+                aggregate = aggregate,
+                modifier = Modifier.padding(end = 12.dp, top = 4.dp),
+            )
         }
     }
 }
 
 @Composable
-private fun AggregateSpeedTextLine(
+private fun AggregateSpeedFigure(
     label: String,
     value: String,
     accent: Color,
+    modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+    val parts = splitSpeedDisplayParts(value)
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(7.dp)
-                    .background(accent, RoundedCornerShape(99.dp)),
+                    .size(6.dp)
+                    .background(accent, CircleShape),
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = parts.value,
+                style = QbNumberStyles.display,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+            if (parts.unit.isNotEmpty()) {
+                Text(
+                    text = " " + parts.unit,
+                    style = QbNumberStyles.small,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 5.dp),
+                )
+            }
+        }
     }
 }
+
+private val WalletServerCardHeightAnimationSpec = spring<Dp>(
+    dampingRatio = 1f,
+    stiffness = 900f,
+)
 
 @Composable
 private fun WalletServerCardStack(
@@ -672,6 +706,16 @@ private fun WalletServerCardStack(
     val serverStackGestureKey = remember(orderedSnapshots) {
         orderedSnapshots.joinToString(separator = "|") { it.profileId }
     }
+    // Where every card will sit if the drag is dropped now. The front-card
+    // presentation and z-order follow this so the stack stays a valid stack
+    // mid-drag and the drop commit changes nothing visually.
+    val projectedIndexByProfileId = remember(orderedSnapshots, dragSession, draggingTargetIndex) {
+        resolveProjectedReorderOrder(
+            items = orderedSnapshots.map { it.profileId },
+            dragSession = dragSession,
+            draggingTargetIndex = draggingTargetIndex,
+        ).withIndex().associate { (index, profileId) -> profileId to index }
+    }
     val stackHeight = if (orderedSnapshots.isEmpty()) {
         0.dp
     } else {
@@ -696,7 +740,13 @@ private fun WalletServerCardStack(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (showReorderHint) {
+            // Animated so the stack below slides up instead of jumping when the
+            // hint goes away (it is dismissed right after the first reorder).
+            AnimatedVisibility(
+                visible = showReorderHint,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -717,6 +767,7 @@ private fun WalletServerCardStack(
             orderedSnapshots.withIndex().toList().asReversed().forEach { (index, snapshot) ->
                 key(snapshot.profileId) {
                     val isSettlingCard = settlingProfileId == snapshot.profileId
+                    val projectedIndex = projectedIndexByProfileId[snapshot.profileId] ?: index
                     WalletServerStackCard(
                         snapshot = snapshot,
                         gestureKey = serverStackGestureKey,
@@ -725,7 +776,8 @@ private fun WalletServerCardStack(
                         cardHeight = HomeServerStackExpandedCardHeight,
                         collapsedCardHeight = HomeServerStackCollapsedCardHeight,
                         exposedHeight = HomeServerStackExposedHeight,
-                        selected = index == 0,
+                        selected = projectedIndex == 0,
+                        zOrderIndex = projectedIndex,
                         stackCount = orderedSnapshots.size,
                         isDragging = draggingProfileId == snapshot.profileId && !isSettlingCard,
                         isSettling = isSettlingCard,
@@ -761,6 +813,8 @@ internal fun WalletServerStackCard(
     exposedHeight: Dp,
     selected: Boolean,
     stackCount: Int,
+    // Draw order slot; during a drag this is the projected slot, not the original.
+    zOrderIndex: Int = stackedIndex,
     isDragging: Boolean,
     isSettling: Boolean,
     dragOffsetY: () -> Float,
@@ -776,16 +830,17 @@ internal fun WalletServerStackCard(
     val palette = remember(snapshot.profileId, paletteIndex) {
         walletCardPalette(paletteIndex)
     }
-    val stateLabel = if (snapshot.isStale) {
-        stringResource(R.string.server_snapshot_stale_state)
-    } else {
-        stringResource(R.string.server_snapshot_live_state)
+    val stateLabel = when (resolveServerSnapshotStatus(snapshot)) {
+        ServerSnapshotStatus.LIVE -> stringResource(R.string.server_snapshot_live_state)
+        ServerSnapshotStatus.CACHED_OFFLINE -> stringResource(R.string.server_snapshot_stale_state)
+        ServerSnapshotStatus.CONNECTING -> stringResource(R.string.server_snapshot_connecting_state)
+        ServerSnapshotStatus.UNREACHABLE -> stringResource(R.string.server_snapshot_unreachable_state)
     }
     val exposedStepPx = with(LocalDensity.current) { exposedHeight.toPx() }
-    val cornerShape = RoundedCornerShape(24.dp)
+    val cornerShape = RoundedCornerShape(16.dp)
     val collapsedShape = RoundedCornerShape(
-        topStart = 24.dp,
-        topEnd = 24.dp,
+        topStart = 16.dp,
+        topEnd = 16.dp,
         bottomStart = 0.dp,
         bottomEnd = 0.dp,
     )
@@ -798,9 +853,18 @@ internal fun WalletServerStackCard(
         unlimitedLabel = stringResource(R.string.limit_unlimited),
     )
     val serverNameTextStyle = MaterialTheme.typography.titleMedium.copy(
-        fontSize = 18.sp,
+        fontSize = 16.sp,
         lineHeight = 22.sp,
     )
+    // Opaque tonal layers: deeper cards in the stack sit one step darker. Must stay
+    // opaque (even over a custom background) or stacked cards ghost through.
+    val colorScheme = MaterialTheme.colorScheme
+    val cardContainerColor = when (stackCount - 1 - stackedIndex) {
+        0 -> colorScheme.surfaceContainerHigh
+        1 -> lerp(colorScheme.surfaceContainer, colorScheme.surfaceContainerHigh, 0.5f)
+        else -> colorScheme.surfaceContainer
+    }
+    val isLive = resolveServerSnapshotStatus(snapshot) == ServerSnapshotStatus.LIVE
     val clickSuppressionThresholdPx = with(LocalDensity.current) {
         ServerCardClickSuppressionDragThreshold.toPx()
     }
@@ -829,12 +893,15 @@ internal fun WalletServerStackCard(
         },
         label = "walletServerSiblingOffset",
     )
-    val baseTranslationY = if (selected) {
-        (stackCount - 1) * exposedStepPx
-    } else {
-        (stackCount - 1 - stackedIndex) * exposedStepPx
-    }
-    val displayHeight = if (presentation.showExpandedLayout) cardHeight else collapsedCardHeight
+    // Position comes from the original slot only; movement during a drag is
+    // carried by the sibling/drag offsets. (`selected` may already reflect the
+    // projected front card, so it must not feed into the base position.)
+    val baseTranslationY = (stackCount - 1 - stackedIndex) * exposedStepPx
+    val displayHeight by animateDpAsState(
+        targetValue = if (presentation.showExpandedLayout) cardHeight else collapsedCardHeight,
+        animationSpec = WalletServerCardHeightAnimationSpec,
+        label = "walletServerCardHeight",
+    )
     val pressedScale by animateFloatAsState(
         targetValue = if (isPressed && !isDragging) 0.985f else 1f,
         animationSpec = tween(durationMillis = 90),
@@ -846,8 +913,15 @@ internal fun WalletServerStackCard(
             .fillMaxWidth()
             .height(displayHeight)
             .graphicsLayer {
-                translationY = baseTranslationY +
-                    if (isDragging || isSettling) 0f else animatedSiblingOffset
+                translationY = baseTranslationY + when {
+                    isDragging || isSettling -> 0f
+                    // Hard zero once the reorder session is gone (same fix as the
+                    // dashboard cards): animateFloatAsState snaps one frame late, so
+                    // right after the order commit the new base position plus the
+                    // stale sibling offset drew every card one slot off for a frame.
+                    !animateSiblingOffset -> 0f
+                    else -> animatedSiblingOffset
+                }
                 shadowElevation = 0f
             }
             .pointerInput(snapshot.profileId, gestureKey) {
@@ -908,10 +982,13 @@ internal fun WalletServerStackCard(
                 )
             }
             .zIndex(
-                if (isDragging || isSettling) {
+                // Only the card under the finger floats above the stack. A settling
+                // card already uses its final slot's z-order, so clearing the drag
+                // state after the settle animation doesn't flip the overlap.
+                if (isDragging) {
                     (stackCount + 1).toFloat()
                 } else {
-                    (stackCount - stackedIndex).toFloat()
+                    (stackCount - zOrderIndex).toFloat()
                 },
             ),
     ) {
@@ -925,17 +1002,17 @@ internal fun WalletServerStackCard(
                         else -> 0f
                     }
                     scaleX = when {
-                        isDragging || isSettling -> 1f
+                        isDragging -> 1f
                         presentation.showExpandedLayout -> 1f
                         else -> 0.992f
                     } * pressedScale
                     scaleY = when {
-                        isDragging || isSettling -> 1f
+                        isDragging -> 1f
                         presentation.showExpandedLayout -> 1f
                         else -> 0.992f
                     } * pressedScale
                     shadowElevation = when {
-                        isDragging || isSettling -> 0f
+                        isDragging -> 0f
                         selected -> ReorderSelectedShadow
                         else -> ReorderCollapsedShadow
                     }
@@ -944,24 +1021,26 @@ internal fun WalletServerStackCard(
                 },
             shape = cardShape,
             border = BorderStroke(
-                if (isDragging || isSettling) 2.dp else 1.dp,
-                if (isDragging || isSettling) {
+                if (isDragging) 2.dp else 1.dp,
+                if (isDragging) {
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.90f)
                 } else {
-                    Color.White.copy(alpha = presentation.borderAlpha)
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                 },
             ),
             colors = CardDefaults.outlinedCardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = cardContainerColor,
             ),
         ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    brush = palette.background,
-                    shape = cardShape,
-                )
+                .drawBehind {
+                    drawRect(
+                        color = palette.accent,
+                        size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height),
+                    )
+                }
                 .padding(
                     horizontal = presentation.horizontalPadding,
                     vertical = presentation.verticalPadding,
@@ -985,36 +1064,24 @@ internal fun WalletServerStackCard(
                                 text = snapshot.profileName.ifBlank { backendLabel(snapshot.backendType) },
                                 style = serverNameTextStyle,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
                                 text = backendLabel(snapshot.backendType),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Color.White.copy(alpha = 0.82f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         Column(
                             horizontalAlignment = Alignment.End,
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Text(
-                                text = stateLabel,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color.White.copy(alpha = 0.92f),
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                text = stringResource(
-                                    R.string.server_summary_speed_fmt,
-                                    formatSpeed(snapshot.transferInfo.uploadSpeed),
-                                    formatSpeed(snapshot.transferInfo.downloadSpeed),
-                                ),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = palette.accent,
-                                fontWeight = FontWeight.SemiBold,
-                                textAlign = TextAlign.End,
+                            WalletCardStatusLabel(label = stateLabel, live = isLive)
+                            WalletCardSpeedLine(
+                                uploadSpeed = snapshot.transferInfo.uploadSpeed,
+                                downloadSpeed = snapshot.transferInfo.downloadSpeed,
                             )
                         }
                     }
@@ -1050,7 +1117,7 @@ internal fun WalletServerStackCard(
                         text = snapshot.profileName.ifBlank { backendLabel(snapshot.backendType) },
                         style = serverNameTextStyle,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -1060,25 +1127,10 @@ internal fun WalletServerStackCard(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        Text(
-                            text = stateLabel,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.White.copy(alpha = 0.92f),
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = stringResource(
-                                R.string.server_summary_speed_fmt,
-                                formatSpeed(snapshot.transferInfo.uploadSpeed),
-                                formatSpeed(snapshot.transferInfo.downloadSpeed),
-                            ),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = palette.accent,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.End,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                        WalletCardStatusLabel(label = stateLabel, live = isLive)
+                        WalletCardSpeedLine(
+                            uploadSpeed = snapshot.transferInfo.uploadSpeed,
+                            downloadSpeed = snapshot.transferInfo.downloadSpeed,
                         )
                     }
                 }
@@ -1100,15 +1152,62 @@ private fun WalletCardMetricLine(
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.76f),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.labelMedium,
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
+            style = QbNumberStyles.small,
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.End,
+        )
+    }
+}
+
+@Composable
+private fun WalletCardStatusLabel(
+    label: String,
+    live: Boolean,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .background(
+                    color = if (live) QbTransferColors.Upload else MaterialTheme.colorScheme.outline,
+                    shape = CircleShape,
+                ),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun WalletCardSpeedLine(
+    uploadSpeed: Long,
+    downloadSpeed: Long,
+) {
+    val idle = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = "↑ " + formatSpeed(uploadSpeed),
+            style = QbNumberStyles.small,
+            color = if (uploadSpeed > 0L) QbTransferColors.Upload else idle,
+            maxLines = 1,
+        )
+        Text(
+            text = "↓ " + formatSpeed(downloadSpeed),
+            style = QbNumberStyles.small,
+            color = if (downloadSpeed > 0L) QbTransferColors.Download else idle,
+            maxLines = 1,
         )
     }
 }
@@ -1276,76 +1375,24 @@ internal fun ServerDashboardCardManagerSheet(
 }
 
 private data class WalletCardPalette(
-    val background: Brush,
     val accent: Color,
+)
+
+// Muted accents: the card itself stays a neutral tone, the server identity is a
+// thin stripe on the leading edge.
+private val WalletCardAccents = listOf(
+    Color(0xFF5FD3C7),
+    Color(0xFF5B9BF5),
+    Color(0xFFE0A458),
+    Color(0xFFA78BFA),
+    Color(0xFFE58FA8),
+    Color(0xFF4CC38A),
 )
 
 private fun walletCardPalette(
     stackedIndex: Int,
 ): WalletCardPalette {
-    val palettes = listOf(
-        WalletCardPalette(
-            background = Brush.linearGradient(
-                listOf(
-                    Color(0xFF16213F),
-                    Color(0xFF3458B8),
-                    Color(0xFF5E89FF),
-                ),
-            ),
-            accent = Color(0xFFEAF2FF),
-        ),
-        WalletCardPalette(
-            background = Brush.linearGradient(
-                listOf(
-                    Color(0xFF3A1C0F),
-                    Color(0xFF9B5223),
-                    Color(0xFFE79A45),
-                ),
-            ),
-            accent = Color(0xFFFFF3E7),
-        ),
-        WalletCardPalette(
-            background = Brush.linearGradient(
-                listOf(
-                    Color(0xFF112C26),
-                    Color(0xFF24755D),
-                    Color(0xFF52C79B),
-                ),
-            ),
-            accent = Color(0xFFE9FFF5),
-        ),
-        WalletCardPalette(
-            background = Brush.linearGradient(
-                listOf(
-                    Color(0xFF2B183B),
-                    Color(0xFF7A46B1),
-                    Color(0xFFB97DFF),
-                ),
-            ),
-            accent = Color(0xFFF6EEFF),
-        ),
-        WalletCardPalette(
-            background = Brush.linearGradient(
-                listOf(
-                    Color(0xFF381520),
-                    Color(0xFF9F4062),
-                    Color(0xFFE785A7),
-                ),
-            ),
-            accent = Color(0xFFFFEEF5),
-        ),
-        WalletCardPalette(
-            background = Brush.linearGradient(
-                listOf(
-                    Color(0xFF13293F),
-                    Color(0xFF2280A6),
-                    Color(0xFF6FD2F7),
-                ),
-            ),
-            accent = Color(0xFFEAFBFF),
-        ),
-    )
-    return palettes[stackedIndex % palettes.size]
+    return WalletCardPalette(accent = WalletCardAccents[stackedIndex % WalletCardAccents.size])
 }
 
 @Composable
@@ -1552,7 +1599,7 @@ private fun DashboardSecondaryStatsBlock(
             limitText = uploadLimitText,
             totalText = totalUploadedText,
             showTotal = showTotals,
-            accentColor = Color(0xFF2B73F5),
+            accentColor = QbTransferColors.Upload,
         )
         DashboardSpeedMetricPanel(
             title = stringResource(R.string.download),
@@ -1561,7 +1608,7 @@ private fun DashboardSecondaryStatsBlock(
             limitText = downloadLimitText,
             totalText = totalDownloadedText,
             showTotal = showTotals,
-            accentColor = Color(0xFF08A3AE),
+            accentColor = QbTransferColors.Download,
         )
     }
 }
@@ -1606,15 +1653,10 @@ private fun RowScope.DashboardSpeedMetricPanel(
                     .joinToString("，")
             }
             .background(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.56f),
-                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(12.dp),
             )
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f),
-                shape = RoundedCornerShape(10.dp),
-            )
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(
@@ -1633,21 +1675,14 @@ private fun RowScope.DashboardSpeedMetricPanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Box(
-            modifier = Modifier
-                .width(24.dp)
-                .height(2.dp)
-                .background(accentColor, RoundedCornerShape(99.dp)),
-        )
         Row(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = speedParts.value,
-                style = MaterialTheme.typography.titleLarge,
+                style = QbNumberStyles.display.copy(fontSize = 24.sp, lineHeight = 30.sp),
                 color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.ExtraBold,
             )
             if (speedParts.unit.isNotBlank()) {
                 Text(
@@ -1695,15 +1730,10 @@ private fun DashboardStatusPill(
     Box(
         modifier = Modifier
             .background(
-                color = qbGlassSubtleContainerColor(),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(999.dp),
             )
-            .border(
-                width = 1.dp,
-                color = qbGlassOutlineColor(defaultAlpha = 0.24f),
-                shape = RoundedCornerShape(999.dp),
-            )
-            .padding(horizontal = 9.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

@@ -1,5 +1,7 @@
 package com.hjw.qbremote.data
 
+import com.hjw.qbremote.data.model.FilePriority
+import com.hjw.qbremote.data.model.TorrentPeer
 import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -15,7 +17,10 @@ import com.hjw.qbremote.data.model.TorrentInfo
 import com.hjw.qbremote.data.model.TorrentProperties
 import com.hjw.qbremote.data.model.TorrentTracker
 import com.hjw.qbremote.data.model.TransferInfo
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaType
@@ -83,6 +88,47 @@ class TransmissionBackend : TorrentBackend {
             properties = torrent.toTorrentProperties(),
             files = torrent.toTorrentFiles(),
         )
+    }
+
+    override suspend fun fetchTorrentPeers(hash: String): Result<List<TorrentPeer>> = runCatching {
+        require(hash.isNotBlank()) { "Invalid torrent hash." }
+        val torrent = requireClient().torrentGet(ids = listOf(hash), fields = listOf("hashString", "peers"))
+            .firstOrNull() ?: throw IllegalStateException("Torrent not found.")
+        torrent.peers.map { peer ->
+            TorrentPeer(
+                address = if (peer.port > 0) "${peer.address}:${peer.port}" else peer.address,
+                client = peer.clientName,
+                progress = peer.progress.toFloat().coerceIn(0f, 1f),
+                // rateToClient = we download from the peer; rateToPeer = we upload to it.
+                downloadSpeed = peer.rateToClient.coerceAtLeast(0L),
+                uploadSpeed = peer.rateToPeer.coerceAtLeast(0L),
+                flags = peer.flagStr,
+            )
+        }.sortedWith(compareByDescending<TorrentPeer> { it.uploadSpeed + it.downloadSpeed }.thenBy { it.address })
+    }
+
+    override suspend fun setFilePriority(
+        hash: String,
+        fileIndexes: List<Int>,
+        priority: FilePriority,
+    ): Result<Unit> = runCatching {
+        require(hash.isNotBlank()) { "Invalid torrent hash." }
+        val ids = fileIndexes.filter { it >= 0 }.distinct()
+        if (ids.isEmpty()) return@runCatching
+        val arguments = when (priority) {
+            FilePriority.SKIP -> buildJsonObject("ids" to listOf(hash), "files-unwanted" to ids)
+            FilePriority.NORMAL -> buildJsonObject(
+                "ids" to listOf(hash),
+                "files-wanted" to ids,
+                "priority-normal" to ids,
+            )
+            FilePriority.HIGH -> buildJsonObject(
+                "ids" to listOf(hash),
+                "files-wanted" to ids,
+                "priority-high" to ids,
+            )
+        }
+        requireClient().rpc(method = "torrent-set", arguments = arguments)
     }
 
     override suspend fun fetchTorrentTrackers(hash: String): Result<List<TorrentTracker>> = runCatching {
@@ -252,7 +298,10 @@ class TransmissionBackend : TorrentBackend {
             method = "torrent-set",
             arguments = buildJsonObject(
                 "ids" to listOf(hash),
-                "seedRatioMode" to if (ratioLimit < 0) 1 else 2,
+                // Transmission seedRatioMode: 0 = global, 1 = this torrent's
+                // seedRatioLimit, 2 = unlimited. (Was inverted: a limit made the
+                // torrent unlimited and "unlimited" applied a 0 limit.)
+                "seedRatioMode" to if (ratioLimit < 0) 2 else 1,
                 "seedRatioLimit" to ratioLimit.coerceAtLeast(0.0),
             ),
         )
@@ -359,24 +408,30 @@ class TransmissionBackend : TorrentBackend {
         )
     }
 
-    private suspend fun fetchDashboardData(client: TransmissionRpcClient): DashboardData {
-        val transferInfo = fetchTransferInfoData(client)
-        val (transmissionTorrents, _) = client.torrentGetStreamed(
-            fields = transmissionDashboardFields(),
-        )
-        val torrents = transmissionTorrents.map { torrent ->
-            torrent.toTorrentInfo()
+    // The RPCs below are independent; issue them concurrently so a poll costs
+    // ~2 round trips instead of 4 serial ones.
+    private suspend fun fetchDashboardData(client: TransmissionRpcClient): DashboardData = coroutineScope {
+        val transferInfo = async { fetchTransferInfoData(client) }
+        val torrents = async {
+            val (transmissionTorrents, _) = client.torrentGetStreamed(
+                fields = transmissionDashboardFields(),
+            )
+            transmissionTorrents.map { torrent ->
+                torrent.toTorrentInfo()
+            }
         }
 
-        return DashboardData(
-            transferInfo = transferInfo,
-            torrents = torrents,
+        DashboardData(
+            transferInfo = transferInfo.await(),
+            torrents = torrents.await(),
         )
     }
 
-    private suspend fun fetchTransferInfoData(client: TransmissionRpcClient): TransferInfo {
-        val session = client.sessionGet()
-        val sessionStats = client.sessionStats()
+    private suspend fun fetchTransferInfoData(client: TransmissionRpcClient): TransferInfo = coroutineScope {
+        val sessionDeferred = async { client.sessionGet() }
+        val sessionStatsDeferred = async { client.sessionStats() }
+        val session = sessionDeferred.await()
+        val sessionStats = sessionStatsDeferred.await()
         val downloadLimit = if (session.speedLimitDownEnabled) {
             session.speedLimitDown.toLong().coerceAtLeast(0L) * 1024L
         } else {
@@ -391,7 +446,7 @@ class TransmissionBackend : TorrentBackend {
             client.freeSpace(path).getOrElse { 0L }
         } ?: 0L
 
-        return TransferInfo(
+        TransferInfo(
             downloadSpeed = sessionStats.downloadSpeed.coerceAtLeast(0L),
             uploadSpeed = sessionStats.uploadSpeed.coerceAtLeast(0L),
             downloadedTotal = sessionStats.cumulativeDownloadedBytes.coerceAtLeast(0L),
@@ -414,6 +469,7 @@ class TransmissionBackend : TorrentBackend {
         okHttpClient: OkHttpClient,
     ) {
         private val rpcUrls = settings.transmissionRpcUrlCandidates()
+        private val useHttps = settings.useHttps
         private val authHeader = if (settings.username.isNotBlank()) {
             Credentials.basic(settings.username, settings.password)
         } else {
@@ -445,6 +501,7 @@ class TransmissionBackend : TorrentBackend {
         }
         @Volatile
         private var sessionId: String? = null
+        @Volatile
         private var probeResult: TransmissionRpcProbeResult? = null
 
         private fun JsonElement.asTransmissionSessionInfo(): TransmissionSessionInfo {
@@ -502,200 +559,20 @@ class TransmissionBackend : TorrentBackend {
             if (ids.isNotEmpty()) {
                 arguments.add("ids", gson.toJsonTree(ids))
             }
-            return withContext(Dispatchers.IO) {
-                val bodyJson = gson.toJson(
-                    mapOf(
-                        "method" to "torrent-get",
-                        "arguments" to arguments,
-                    ),
-                )
-                var lastError: Throwable? = null
-                val attemptFailures = mutableListOf<RpcAttemptFailure>()
-                for (candidate in effectiveRpcUrls()) {
-                    try {
-                        val response = execute(candidate, bodyJson) { rawResponse, preview ->
-                            parseTorrentGetResponse(
-                                url = candidate,
-                                response = rawResponse,
-                                preview = preview,
-                            )
-                        }
-                        selectedUrl = candidate
-                        probeResult = TransmissionRpcProbeResult(
-                            resolvedUrl = candidate,
-                            attempts = rpcUrls,
-                            failureSummary = attemptFailures.joinToString(" | ") { attempt ->
-                                "${attempt.url} => ${attempt.summary}"
-                            },
-                        )
-                        return@withContext response
-                    } catch (error: TransmissionRpcAttemptException) {
-                        attemptFailures += RpcAttemptFailure(
-                            url = error.url,
-                            summary = error.summary,
-                            authFailure = error.authFailure,
-                        )
-                        lastError = error
-                    } catch (error: Throwable) {
-                        attemptFailures += RpcAttemptFailure(
-                            url = candidate,
-                            summary = error.message?.takeIf { it.isNotBlank() }
-                                ?: error::class.simpleName
-                                ?: "Request failed.",
-                        )
-                        lastError = error
-                    }
-                }
-
-                val authFailure = attemptFailures.firstOrNull { it.authFailure }
-                if (authFailure != null) {
-                    throw BackendConnectionError.AuthFailed(
-                        backendType = ServerBackendType.TRANSMISSION,
-                        detail = authFailure.summary,
-                    )
-                }
-
-                if (attemptFailures.isNotEmpty()) {
-                    throw BackendConnectionError.RpcPathNotFound(
-                        attempts = attemptFailures.map { it.url },
-                        failureSummary = attemptFailures.joinToString(" | ") { attempt ->
-                            "${attempt.url} => ${attempt.summary}"
-                        },
-                    )
-                }
-
-                throw lastError ?: IllegalStateException("Transmission RPC failed.")
+            return callRpc("torrent-get", arguments) { url, response, preview ->
+                parseTorrentGetResponse(url = url, response = response, preview = preview)
             }
         }
 
         suspend fun torrentGetStreamed(
             fields: List<String>,
         ): Pair<List<TransmissionTorrent>, Int> {
-            val arguments = buildJsonObject("fields" to fields)
-            return withContext(Dispatchers.IO) {
-                val bodyJson = gson.toJson(
-                    mapOf(
-                        "method" to "torrent-get",
-                        "arguments" to arguments,
-                    ),
-                )
-                var lastError: Throwable? = null
-                val attemptFailures = mutableListOf<RpcAttemptFailure>()
-                for (candidate in effectiveRpcUrls()) {
-                    try {
-                        val result = executeStreamed(candidate, bodyJson)
-                        selectedUrl = candidate
-                        probeResult = TransmissionRpcProbeResult(
-                            resolvedUrl = candidate,
-                            attempts = rpcUrls,
-                            failureSummary = attemptFailures.joinToString(" | ") { attempt ->
-                                "${attempt.url} => ${attempt.summary}"
-                            },
-                        )
-                        return@withContext result
-                    } catch (error: TransmissionRpcAttemptException) {
-                        attemptFailures += RpcAttemptFailure(
-                            url = error.url,
-                            summary = error.summary,
-                            authFailure = error.authFailure,
-                        )
-                        lastError = error
-                    } catch (error: Throwable) {
-                        attemptFailures += RpcAttemptFailure(
-                            url = candidate,
-                            summary = error.message?.takeIf { it.isNotBlank() }
-                                ?: error::class.simpleName
-                                ?: "Request failed.",
-                        )
-                        lastError = error
-                    }
-                }
-
-                val authFailure = attemptFailures.firstOrNull { it.authFailure }
-                if (authFailure != null) {
-                    throw BackendConnectionError.AuthFailed(
-                        backendType = ServerBackendType.TRANSMISSION,
-                        detail = authFailure.summary,
-                    )
-                }
-
-                if (attemptFailures.isNotEmpty()) {
-                    throw BackendConnectionError.RpcPathNotFound(
-                        attempts = attemptFailures.map { it.url },
-                        failureSummary = attemptFailures.joinToString(" | ") { attempt ->
-                            "${attempt.url} => ${attempt.summary}"
-                        },
-                    )
-                }
-
-                throw lastError ?: IllegalStateException("Transmission RPC failed.")
-            }
-        }
-
-        private fun executeStreamed(
-            url: String,
-            bodyJson: String,
-            handshakeAttempt: Int = 0,
-        ): Pair<List<TransmissionTorrent>, Int> {
-            val mediaType = "application/json".toMediaType()
-            var requestBuilder = Request.Builder()
-                .url(url)
-                .post(bodyJson.toRequestBody(mediaType))
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-            if (!authHeader.isNullOrBlank()) {
-                requestBuilder = requestBuilder.header("Authorization", authHeader)
-            }
-            sessionId?.takeIf { it.isNotBlank() }?.let { value ->
-                requestBuilder = requestBuilder.header("X-Transmission-Session-Id", value)
-            }
-
-            client.newCall(requestBuilder.build()).execute().use { response ->
-                if (response.code == 409) {
-                    val newSessionId = response.header("X-Transmission-Session-Id").orEmpty()
-                    if (newSessionId.isBlank()) {
-                        throw TransmissionRpcAttemptException(
-                            url = url,
-                            summary = "Session handshake failed (409 without session id).",
-                        )
-                    }
-                    // Per the RPC spec one retry with the refreshed session id must
-                    // succeed; bound it so a proxy that always answers 409 with a new
-                    // id cannot recurse forever.
-                    if (handshakeAttempt >= MAX_SESSION_HANDSHAKE_RETRIES) {
-                        throw TransmissionRpcAttemptException(
-                            url = url,
-                            summary = "Session handshake did not converge (repeated 409).",
-                        )
-                    }
-                    sessionId = newSessionId
-                    return executeStreamed(url, bodyJson, handshakeAttempt + 1)
-                }
-                if (response.code == 401 || response.code == 403) {
-                    throw TransmissionRpcAttemptException(
-                        url = url,
-                        summary = "Authentication failed (HTTP ${response.code}).",
-                        authFailure = true,
-                    )
-                }
-                val preview = response.peekBody(RESPONSE_PREVIEW_BYTES).string()
-                if (!response.isSuccessful) {
-                    throw TransmissionRpcAttemptException(
-                        url = url,
-                        summary = when {
-                            response.isRedirect ->
-                                "Redirected to ${response.header("Location").orEmpty().ifBlank { "unknown location" }} (HTTP ${response.code})."
-                            looksLikeHtml(preview) -> "Invalid HTML response (HTTP ${response.code})."
-                            preview.isBlank() -> "HTTP ${response.code}."
-                            else -> "HTTP ${response.code}: ${summarizeResponseText(preview, maxChars = 120)}"
-                        },
-                    )
-                }
+            return callRpc("torrent-get", buildJsonObject("fields" to fields)) { url, response, _ ->
                 val body = response.body ?: throw TransmissionRpcAttemptException(
                     url = url,
                     summary = "Empty response body.",
                 )
-                return parseTorrentGetResponseStreamed(url, body)
+                parseTorrentGetResponseStreamed(url, body)
             }
         }
 
@@ -749,7 +626,7 @@ class TransmissionBackend : TorrentBackend {
 
                 if (!result.equals("success", ignoreCase = true)) {
                     val summary = result.ifBlank { "Transmission RPC returned an error." }
-                    throw TransmissionRpcAttemptException(
+                    throw TransmissionRpcResultException(
                         url = url,
                         summary = summarizeResponseText(summary, maxChars = 120),
                         authFailure = looksLikeAuthFailure(summary),
@@ -761,70 +638,105 @@ class TransmissionBackend : TorrentBackend {
         }
 
         suspend fun rpc(method: String, arguments: JsonObject): JsonElement {
-            return withContext(Dispatchers.IO) {
-                val bodyJson = gson.toJson(
-                    mapOf(
-                        "method" to method,
-                        "arguments" to arguments,
-                    ),
-                )
-                var lastError: Throwable? = null
-                val attemptFailures = mutableListOf<RpcAttemptFailure>()
-                for (candidate in effectiveRpcUrls()) {
-                    try {
-                        val response = execute(candidate, bodyJson) { rawResponse, preview ->
-                            parseRpcArguments(
-                                url = candidate,
-                                response = rawResponse,
-                                preview = preview,
-                            )
-                        }
-                        selectedUrl = candidate
-                        probeResult = TransmissionRpcProbeResult(
-                            resolvedUrl = candidate,
-                            attempts = rpcUrls,
-                            failureSummary = attemptFailures.joinToString(" | ") { attempt ->
-                                "${attempt.url} => ${attempt.summary}"
-                            },
-                        )
-                        return@withContext response
-                    } catch (error: TransmissionRpcAttemptException) {
-                        attemptFailures += RpcAttemptFailure(
-                            url = error.url,
-                            summary = error.summary,
-                            authFailure = error.authFailure,
-                        )
-                        lastError = error
-                    } catch (error: Throwable) {
-                        attemptFailures += RpcAttemptFailure(
-                            url = candidate,
-                            summary = error.message?.takeIf { it.isNotBlank() }
-                                ?: error::class.simpleName
-                                ?: "Request failed.",
-                        )
-                        lastError = error
+            return callRpc(method, arguments) { url, response, preview ->
+                parseRpcArguments(url = url, response = response, preview = preview)
+            }
+        }
+
+        /**
+         * Sends one RPC call, trying the last working URL first and then the other
+         * candidates. Transport-level failures (404, HTML, redirects...) move on to
+         * the next candidate; an RPC-level error result stops immediately.
+         */
+        private suspend fun <T> callRpc(
+            method: String,
+            arguments: JsonObject,
+            parser: (url: String, response: Response, preview: String) -> T,
+        ): T = withContext(Dispatchers.IO) {
+            val bodyJson = gson.toJson(
+                mapOf(
+                    "method" to method,
+                    "arguments" to arguments,
+                ),
+            )
+            var lastError: Throwable? = null
+            val attemptFailures = mutableListOf<RpcAttemptFailure>()
+            for (candidate in effectiveRpcUrls()) {
+                try {
+                    val result = execute(candidate, bodyJson) { rawResponse, preview ->
+                        parser(candidate, rawResponse, preview)
                     }
-                }
-
-                val authFailure = attemptFailures.firstOrNull { it.authFailure }
-                if (authFailure != null) {
-                    throw BackendConnectionError.AuthFailed(
-                        backendType = ServerBackendType.TRANSMISSION,
-                        detail = authFailure.summary,
-                    )
-                }
-
-                if (attemptFailures.isNotEmpty()) {
-                    throw BackendConnectionError.RpcPathNotFound(
-                        attempts = attemptFailures.map { it.url },
+                    selectedUrl = candidate
+                    probeResult = TransmissionRpcProbeResult(
+                        resolvedUrl = candidate,
+                        attempts = rpcUrls,
                         failureSummary = attemptFailures.joinToString(" | ") { attempt ->
                             "${attempt.url} => ${attempt.summary}"
                         },
                     )
+                    return@withContext result
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: TransmissionRpcResultException) {
+                    failOnRpcResult(candidate, error)
+                } catch (error: TransmissionRpcAttemptException) {
+                    attemptFailures += RpcAttemptFailure(
+                        url = error.url,
+                        summary = error.summary,
+                        authFailure = error.authFailure,
+                    )
+                    lastError = error
+                } catch (error: Throwable) {
+                    attemptFailures += RpcAttemptFailure(
+                        url = candidate,
+                        summary = error.message?.takeIf { it.isNotBlank() }
+                            ?: error::class.simpleName
+                            ?: "Request failed.",
+                    )
+                    lastError = error
                 }
-
-                throw lastError ?: IllegalStateException("Transmission RPC failed.")
             }
+
+            val authFailure = attemptFailures.firstOrNull { it.authFailure }
+            if (authFailure != null) {
+                throw BackendConnectionError.AuthFailed(
+                    backendType = ServerBackendType.TRANSMISSION,
+                    detail = authFailure.summary,
+                )
+            }
+
+            val combinedSummary = attemptFailures.joinToString(" | ") { attempt ->
+                "${attempt.url} => ${attempt.summary}"
+            }
+            if (looksLikeHttpsMismatch(useHttps, combinedSummary)) {
+                throw BackendConnectionError.HttpsMismatch(
+                    backendType = ServerBackendType.TRANSMISSION,
+                    usedHttps = useHttps,
+                    detail = combinedSummary,
+                )
+            }
+
+            if (attemptFailures.isNotEmpty()) {
+                throw BackendConnectionError.RpcPathNotFound(
+                    attempts = attemptFailures.map { it.url },
+                    failureSummary = attemptFailures.joinToString(" | ") { attempt ->
+                        "${attempt.url} => ${attempt.summary}"
+                    },
+                )
+            }
+
+            throw lastError ?: IllegalStateException("Transmission RPC failed.")
+        }
+
+        private fun failOnRpcResult(candidate: String, error: TransmissionRpcResultException): Nothing {
+            selectedUrl = candidate
+            if (error.authFailure) {
+                throw BackendConnectionError.AuthFailed(
+                    backendType = ServerBackendType.TRANSMISSION,
+                    detail = error.summary,
+                )
+            }
+            throw error
         }
 
         private fun effectiveRpcUrls(): List<String> {
@@ -936,7 +848,7 @@ class TransmissionBackend : TorrentBackend {
             val result = root.get("result")?.asString.orEmpty()
             if (!result.equals("success", ignoreCase = true)) {
                 val summary = result.ifBlank { "Transmission RPC returned an error." }
-                throw TransmissionRpcAttemptException(
+                throw TransmissionRpcResultException(
                     url = url,
                     summary = summarizeResponseText(summary, maxChars = 120),
                     authFailure = looksLikeAuthFailure(summary),
@@ -974,7 +886,7 @@ class TransmissionBackend : TorrentBackend {
             val result = envelope.result.orEmpty()
             if (!result.equals("success", ignoreCase = true)) {
                 val summary = result.ifBlank { "Transmission RPC returned an error." }
-                throw TransmissionRpcAttemptException(
+                throw TransmissionRpcResultException(
                     url = url,
                     summary = summarizeResponseText(summary, maxChars = 120),
                     authFailure = looksLikeAuthFailure(summary),
@@ -1022,6 +934,7 @@ class TransmissionBackend : TorrentBackend {
             tracker = primaryTracker.trim(),
             savePath = downloadDir.trim(),
             tags = labelsText,
+            ratioLimit = transmissionRatioLimitToQbEncoding(seedRatioMode, seedRatioLimit),
         )
     }
 
@@ -1063,7 +976,7 @@ class TransmissionBackend : TorrentBackend {
                 } else {
                     0f
                 },
-                priority = fileStats.getOrNull(index)?.priority ?: 0,
+                priority = transmissionFilePriorityToQb(fileStats.getOrNull(index)),
             )
         }
     }
@@ -1182,7 +1095,19 @@ internal fun transmissionDashboardFields(): List<String> = listOf(
     "trackerList",
     "downloadDir",
     "isFinished",
+    "seedRatioMode",
+    "seedRatioLimit",
 )
+
+/** Maps Transmission's seedRatioMode/seedRatioLimit onto TorrentInfo.ratioLimit's qB encoding. */
+internal fun transmissionRatioLimitToQbEncoding(seedRatioMode: Int?, seedRatioLimit: Double?): Double? {
+    return when (seedRatioMode) {
+        0 -> -2.0
+        1 -> seedRatioLimit?.coerceAtLeast(0.0)
+        2 -> -1.0
+        else -> null
+    }
+}
 
 internal fun resolveTransmissionPrimaryTracker(rawTrackerList: String): String {
     return rawTrackerList
@@ -1309,6 +1234,15 @@ private class TransmissionRpcAttemptException(
     val authFailure: Boolean = false,
 ) : IOException(summary)
 
+// The endpoint answered with a well-formed RPC envelope whose "result" is not
+// "success": the path is correct and this is the server's verdict on the call
+// itself, so it must not be replayed against other candidate URLs.
+private class TransmissionRpcResultException(
+    val url: String,
+    val summary: String,
+    val authFailure: Boolean = false,
+) : IllegalStateException("Transmission RPC error: $summary")
+
 internal data class TransmissionSessionInfo(
     val version: String = "-",
     @SerializedName("download-dir") val downloadDir: String = "",
@@ -1365,6 +1299,8 @@ internal data class TransmissionTorrent(
     val trackerStats: List<TransmissionTrackerStat> = emptyList(),
     val downloadDir: String = "",
     val isFinished: Boolean = false,
+    val seedRatioMode: Int? = null,
+    val seedRatioLimit: Double? = null,
     val comment: String? = null,
     val dateCreated: Long = 0,
     val pieceSize: Long = 0,
@@ -1376,6 +1312,7 @@ internal data class TransmissionTorrent(
     val secondsSeeding: Long = 0,
     val files: List<TransmissionFile> = emptyList(),
     val fileStats: List<TransmissionFileStat> = emptyList(),
+    val peers: List<TransmissionPeer> = emptyList(),
     val magnetLink: String = "",
 ) {
     val labels: List<String>
@@ -1417,4 +1354,22 @@ internal data class TransmissionFile(
 
 internal data class TransmissionFileStat(
     val priority: Int = 0,
+    val wanted: Boolean = true,
 )
+
+internal data class TransmissionPeer(
+    val address: String = "",
+    val port: Int = 0,
+    val clientName: String = "",
+    val progress: Double = 0.0,
+    val rateToClient: Long = 0,
+    val rateToPeer: Long = 0,
+    val flagStr: String = "",
+)
+
+/** Transmission fileStats -> TorrentFileInfo.priority (qB encoding: 0 skip, 1 normal, 6 high). */
+internal fun transmissionFilePriorityToQb(stat: TransmissionFileStat?): Int {
+    if (stat == null) return FilePriority.NORMAL.qbValue
+    if (!stat.wanted) return FilePriority.SKIP.qbValue
+    return if (stat.priority > 0) FilePriority.HIGH.qbValue else FilePriority.NORMAL.qbValue
+}

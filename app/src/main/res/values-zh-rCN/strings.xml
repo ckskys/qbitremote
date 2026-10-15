@@ -6,7 +6,6 @@
     <string name="notification_torrent_completed_detail">%1$s：%2$s 已完成下载</string>
 
     <string name="menu_settings">设置</string>
-    <string name="menu_servers">服务器</string>
     <string name="menu_theme">主题</string>
     <string name="brand_qbittorrent">qBittorrent</string>
     <string name="backend_qbittorrent">qBittorrent</string>
@@ -55,7 +54,6 @@
     <string name="connecting">连接中…</string>
 
     <string name="refresh">刷新</string>
-    <string name="refreshing">刷新中…</string>
     <string name="global_down_fmt">下载速度：%1$s</string>
     <string name="global_up_fmt">上传速度：%1$s</string>
     <string name="global_total_down_fmt">总下载量：%1$s</string>
@@ -122,7 +120,6 @@
     <string name="delete_torrent_desc">请选择是否同时删除已下载文件。</string>
 
     <string name="torrent_detail_not_found">未找到种子详情。</string>
-    <string name="detail_section_basic">基础信息</string>
     <string name="detail_hash_label">种子哈希</string>
     <string name="detail_magnet_label">磁力链接</string>
     <string name="detail_export_torrent">导出种子</string>
@@ -200,7 +197,7 @@
     <string name="server_save_action">保存</string>
     <string name="server_name_optional_label">服务器名称（可选）</string>
     <string name="server_password_preserve_hint">留空则保持原密码</string>
-    <string name="server_profile_active">已连接</string>
+    <string name="server_profile_active">当前服务器</string>
     <string name="server_profile_saved">已保存</string>
     <string name="server_profile_tap_to_connect">点击切换</string>
     <string name="server_delete_title">删除服务器</string>
@@ -219,6 +216,8 @@
     <string name="server_stack_reorder_hint">长按卡片可调整顺序</string>
     <string name="server_snapshot_live_state">在线</string>
     <string name="server_snapshot_stale_state">离线缓存</string>
+    <string name="server_snapshot_connecting_state">连接中…</string>
+    <string name="server_snapshot_unreachable_state">无法连接</string>
     <string name="dashboard_swipe_hint">左滑总览卡可编辑或删除</string>
     <string name="dashboard_chart_reorder_hint">长按图表卡调整顺序，可在图表管理中恢复隐藏卡片</string>
     <string name="dashboard_manage_cards_title">图表管理</string>
@@ -276,7 +275,7 @@
     <string name="detail_upload_kb_label">上传 KB/s</string>
     <string name="detail_action_apply">应用</string>
     <string name="detail_section_ratio">分享比率</string>
-    <string name="detail_ratio_label">比率</string>
+    <string name="detail_ratio_label">分享率上限（-1 为不限）</string>
     <plurals name="detail_tracker_count">
         <item quantity="other">%1$d 个 Tracker</item>
     </plurals>
@@ -333,4 +332,24 @@
     <string name="filter_state_completed">已完成</string>
     <string name="filter_state_checking">校验中</string>
     <string name="filter_state_error">错误</string>
+    <string name="torrent_selection_count">已选 %1$d 项</string>
+    <string name="select_all">全选</string>
+    <string name="delete_torrents_title_fmt">删除 %1$d 个种子</string>
+    <string name="exit_selection">退出多选</string>
+    <string name="active_just_now">刚刚</string>
+    <string name="server_test_connection">测试连接</string>
+    <string name="server_test_running">正在测试连接…</string>
+    <string name="server_test_success_fmt">连接成功，服务器版本 %1$s</string>
+    <string name="detail_peers_connected_fmt">已连接 %1$d 个用户</string>
+    <string name="detail_peers_empty">当前没有连接的用户</string>
+    <string name="file_priority_skip">不下载</string>
+    <string name="file_priority_normal">正常</string>
+    <string name="file_priority_high">高</string>
+    <string name="file_priority_mixed">混合</string>
+    <string name="chart_time_now">现在</string>
+    <string name="torrent_row_ratio_fmt">比率 %1$s</string>
+    <string name="torrent_row_eta_fmt">剩余 %1$s</string>
+    <string name="detail_stat_upload">上传</string>
+    <string name="detail_stat_download">下载</string>
+    <string name="detail_stat_size">大小</string>
 </resources>

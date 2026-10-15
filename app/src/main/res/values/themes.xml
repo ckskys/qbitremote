@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Edge-to-edge without code calls to the APIs deprecated in Android 15
+    (Window.setStatusBarColor / setNavigationBarColor, cutout-mode constants).
+    Play Console flags those calls even inside androidx.activity's enableEdgeToEdge(),
+    so pre-35 devices get transparent bars from these theme attributes instead,
+    and values-v35 (where edge-to-edge is enforced) sets none of them.
+-->
 <resources>
-    <style name="Theme.QBRemote" parent="Theme.AppCompat.DayNight.NoActionBar" />
+    <style name="Theme.QBRemote" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/qb_launch_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- Below API 29 there is no system nav-bar contrast scrim: use our own. -->
+        <item name="android:navigationBarColor">@color/qb_nav_bar_scrim</item>
+    </style>
 </resources>
