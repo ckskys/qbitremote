@@ -236,7 +236,7 @@
     <string name="dashboard_all_cards_hidden_body">Open card management to show them again.</string>
     <string name="close">Close</string>
 
-    <string name="global_speed_limit_action">Speed limits</string>
+    <string name="global_speed_limit_action">Limit settings</string>
     <string name="global_speed_limit_title">Global speed limits</string>
     <string name="global_speed_limit_server_label">Server</string>
     <string name="global_speed_limit_load_failed">Failed to load speed limits</string>
@@ -357,8 +357,11 @@
     <string name="global_speed_limit_mode_option_normal">Normal</string>
     <string name="global_speed_limit_mode_option_alternative">Alternative</string>
     <string name="global_speed_limit_mode_hint">Tap to switch instantly, no need to save</string>
-    <string name="alt_speed_toggle_on">Alt limits</string>
-    <string name="alt_speed_toggle_partial">Partly alt</string>
+    <string name="alt_speed_toggle_on">Global alt limits</string>
+    <string name="alt_speed_toggle_partial">Partial alt limits</string>
     <string name="alt_speed_toggle_desc_off">Switch to alternative speed limits</string>
     <string name="alt_speed_toggle_desc_on">Switch back to normal speed limits</string>
+    <string name="alt_speed_hint_title">This is the alternative speed limit switch</string>
+    <string name="alt_speed_hint_body">Tap to switch between normal and alternative limits. Set both in Limit settings.</string>
+    <string name="alt_speed_hint_dismiss">Got it</string>
 </resources>

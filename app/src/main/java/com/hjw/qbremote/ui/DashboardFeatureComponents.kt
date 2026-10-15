@@ -465,6 +465,10 @@ internal fun ServerOverviewCard(
                     }
                 }
 
+                if (altSpeed.showHint && activeProfileId?.let { it in altSpeed.modes } == true) {
+                    AltSpeedHintCard(onDismiss = altSpeed.onDismissHint)
+                }
+
                 if (showEntryHint) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -623,6 +627,11 @@ private fun DashboardAggregateOverviewCard(
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                }
+            }
+            if (altSpeed.showHint && altSpeed.modes.isNotEmpty()) {
+                Box(modifier = Modifier.padding(end = 12.dp)) {
+                    AltSpeedHintCard(onDismiss = altSpeed.onDismissHint)
                 }
             }
             Row(
@@ -1784,6 +1793,49 @@ private fun DashboardStatusPill(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** One-time explanation shown under the turtle chip the first time it appears. */
+@Composable
+private fun AltSpeedHintCard(onDismiss: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(accent.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
+            .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_turtle),
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(22.dp),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.alt_speed_hint_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = stringResource(R.string.alt_speed_hint_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(onClick = onDismiss) {
+            Text(
+                text = stringResource(R.string.alt_speed_hint_dismiss),
+                color = accent,
             )
         }
     }

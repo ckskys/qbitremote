@@ -395,6 +395,14 @@ class MainViewModel(
         update = { it.copy(homeTorrentEntryHintDismissed = true) },
     )
 
+    fun markAltSpeedHintSeen() {
+        if (_uiState.value.settings.hasSeenAltSpeedHint) return
+        persistUiPreferences(
+            patch = UiPreferencePatch(hasSeenAltSpeedHint = true),
+            update = { it.copy(hasSeenAltSpeedHint = true) },
+        )
+    }
+
     fun markDashboardHideHintSeen() = persistUiPreferences(
         patch = UiPreferencePatch(hasSeenDashboardHideHint = true),
         update = { it.copy(hasSeenDashboardHideHint = true) },

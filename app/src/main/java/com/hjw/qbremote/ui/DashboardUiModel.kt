@@ -25,4 +25,7 @@ internal data class AltSpeedControl(
     val togglingIds: Set<String> = emptySet(),
     val onToggleAll: () -> Unit = {},
     val onToggle: (String) -> Unit = {},
+    // First-run explanation of the turtle chip; tapping the chip also counts as seen.
+    val showHint: Boolean = false,
+    val onDismissHint: () -> Unit = {},
 )

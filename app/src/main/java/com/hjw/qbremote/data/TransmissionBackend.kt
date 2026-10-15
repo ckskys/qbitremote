@@ -40,7 +40,8 @@ class TransmissionBackend : TorrentBackend {
     override val backendType: ServerBackendType = ServerBackendType.TRANSMISSION
     override val capabilities: ServerCapabilities = defaultCapabilitiesFor(backendType)
 
-    private val gson = Gson()
+    // Field types differ across Transmission versions/builds; coerce instead of failing.
+    private val gson = tolerantGson()
     private var activeClient: TransmissionRpcClient? = null
 
     override suspend fun connect(settings: ConnectionSettings): Result<Unit> = runCatching {
@@ -825,6 +826,31 @@ class TransmissionBackend : TorrentBackend {
             }
         }
 
+        /**
+         * HTML / empty bodies mean the URL is wrong (try the next candidate). A JSON
+         * body we could not map means this *is* the RPC endpoint: stop and say what
+         * did not fit, instead of probing other paths and reporting "path not found".
+         */
+        private fun throwParseFailure(url: String, preview: String, error: Throwable): Nothing {
+            val trimmed = preview.removePrefix("\uFEFF").trimStart()
+            if (trimmed.startsWith("{") && !looksLikeHtml(preview)) {
+                val detail = describeJsonMappingFailure(error) ?: error::class.simpleName.orEmpty()
+                throw TransmissionRpcResultException(
+                    url = url,
+                    summary = "Unexpected Transmission response format: $detail",
+                    authFailure = false,
+                )
+            }
+            throw TransmissionRpcAttemptException(
+                url = url,
+                summary = when {
+                    looksLikeHtml(preview) -> "Invalid HTML response."
+                    preview.isBlank() -> "Empty response body."
+                    else -> "Non-JSON response: ${summarizeResponseText(preview, maxChars = 80)}"
+                },
+            )
+        }
+
         private fun parseRpcArguments(
             url: String,
             response: Response,
@@ -878,15 +904,8 @@ class TransmissionBackend : TorrentBackend {
                 body.charStream().use { reader ->
                     gson.fromJson(reader, TransmissionTorrentGetEnvelope::class.java)
                 }
-            }.getOrElse {
-                throw TransmissionRpcAttemptException(
-                    url = url,
-                    summary = when {
-                        looksLikeHtml(preview) -> "Invalid HTML response."
-                        preview.isBlank() -> "Empty response body."
-                        else -> "Non-JSON response: ${summarizeResponseText(preview, maxChars = 80)}"
-                    },
-                )
+            }.getOrElse { error ->
+                throwParseFailure(url, preview, error)
             } ?: throw TransmissionRpcAttemptException(
                 url = url,
                 summary = "Empty response body.",

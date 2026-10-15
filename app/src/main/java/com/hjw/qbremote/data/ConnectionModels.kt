@@ -22,6 +22,7 @@ data class ConnectionSettings(
     val deleteFilesWhenNoSeeders: Boolean = false,
     val completionNotificationsEnabled: Boolean = false,
     val homeTorrentEntryHintDismissed: Boolean = false,
+    val hasSeenAltSpeedHint: Boolean = false,
     val hasSeenDashboardHideHint: Boolean = false,
     val hasSeenDashboardHiddenSnack: Boolean = false,
     val hasSeenServerStackReorderHint: Boolean = false,

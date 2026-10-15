@@ -227,7 +227,7 @@
     <string name="dashboard_all_cards_hidden_body">可以在图表管理中重新显示这些卡片。</string>
     <string name="close">关闭</string>
 
-    <string name="global_speed_limit_action">全局限速</string>
+    <string name="global_speed_limit_action">限速设置</string>
     <string name="global_speed_limit_title">全局限速</string>
     <string name="global_speed_limit_server_label">服务器</string>
     <string name="global_speed_limit_load_failed">限速信息加载失败</string>
@@ -354,8 +354,11 @@
     <string name="global_speed_limit_mode_option_normal">常规限速</string>
     <string name="global_speed_limit_mode_option_alternative">备用限速</string>
     <string name="global_speed_limit_mode_hint">点按即可立即切换，无需保存</string>
-    <string name="alt_speed_toggle_on">备用限速</string>
-    <string name="alt_speed_toggle_partial">部分备用</string>
+    <string name="alt_speed_toggle_on">全局备用限速</string>
+    <string name="alt_speed_toggle_partial">部分备用限速</string>
     <string name="alt_speed_toggle_desc_off">切换到备用限速</string>
     <string name="alt_speed_toggle_desc_on">切换回常规限速</string>
+    <string name="alt_speed_hint_title">这是备用限速开关</string>
+    <string name="alt_speed_hint_body">点一下即可切换常规限速 / 备用限速，两组数值在「限速设置」里修改。</string>
+    <string name="alt_speed_hint_dismiss">知道了</string>
 </resources>

@@ -43,6 +43,7 @@ internal fun Preferences.toSettings(securePassword: String): ConnectionSettings 
         deleteFilesWhenNoSeeders = this[Keys.DeleteFilesWhenNoSeeders] ?: false,
         completionNotificationsEnabled = this[Keys.CompletionNotificationsEnabled] ?: false,
         homeTorrentEntryHintDismissed = this[Keys.HomeTorrentEntryHintDismissed] ?: false,
+        hasSeenAltSpeedHint = this[Keys.HasSeenAltSpeedHint] ?: false,
         hasSeenDashboardHideHint = this[Keys.HasSeenDashboardHideHint] ?: false,
         hasSeenDashboardHiddenSnack = this[Keys.HasSeenDashboardHiddenSnack] ?: false,
         hasSeenServerStackReorderHint = this[Keys.HasSeenServerStackReorderHint] ?: false,

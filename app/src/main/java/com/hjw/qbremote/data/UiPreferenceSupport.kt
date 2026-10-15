@@ -12,6 +12,7 @@ data class UiPreferencePatch(
     val deleteFilesWhenNoSeeders: Boolean? = null,
     val completionNotificationsEnabled: Boolean? = null,
     val homeTorrentEntryHintDismissed: Boolean? = null,
+    val hasSeenAltSpeedHint: Boolean? = null,
     val hasSeenDashboardHideHint: Boolean? = null,
     val hasSeenDashboardHiddenSnack: Boolean? = null,
     val hasSeenServerStackReorderHint: Boolean? = null,
@@ -34,6 +35,7 @@ internal fun mergeUiPreferencePatches(
             ?: base.completionNotificationsEnabled,
         homeTorrentEntryHintDismissed = next.homeTorrentEntryHintDismissed
             ?: base.homeTorrentEntryHintDismissed,
+        hasSeenAltSpeedHint = next.hasSeenAltSpeedHint ?: base.hasSeenAltSpeedHint,
         hasSeenDashboardHideHint = next.hasSeenDashboardHideHint ?: base.hasSeenDashboardHideHint,
         hasSeenDashboardHiddenSnack = next.hasSeenDashboardHiddenSnack
             ?: base.hasSeenDashboardHiddenSnack,
@@ -55,6 +57,7 @@ internal fun applyUiPreferencePatch(target: MutablePreferences, patch: UiPrefere
     patch.deleteFilesWhenNoSeeders?.let { target[Keys.DeleteFilesWhenNoSeeders] = it }
     patch.completionNotificationsEnabled?.let { target[Keys.CompletionNotificationsEnabled] = it }
     patch.homeTorrentEntryHintDismissed?.let { target[Keys.HomeTorrentEntryHintDismissed] = it }
+    patch.hasSeenAltSpeedHint?.let { target[Keys.HasSeenAltSpeedHint] = it }
     patch.hasSeenDashboardHideHint?.let { target[Keys.HasSeenDashboardHideHint] = it }
     patch.hasSeenDashboardHiddenSnack?.let { target[Keys.HasSeenDashboardHiddenSnack] = it }
     patch.hasSeenServerStackReorderHint?.let { target[Keys.HasSeenServerStackReorderHint] = it }

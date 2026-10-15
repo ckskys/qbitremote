@@ -716,12 +716,24 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
-    val altSpeedControl = remember(state.altSpeedModes, state.altSpeedTogglingIds) {
+    val altSpeedControl = remember(
+        state.altSpeedModes,
+        state.altSpeedTogglingIds,
+        state.settings.hasSeenAltSpeedHint,
+    ) {
         AltSpeedControl(
             modes = state.altSpeedModes,
             togglingIds = state.altSpeedTogglingIds,
-            onToggleAll = viewModel::toggleAltSpeedForAll,
-            onToggle = viewModel::toggleAltSpeed,
+            onToggleAll = {
+                viewModel.markAltSpeedHintSeen()
+                viewModel.toggleAltSpeedForAll()
+            },
+            onToggle = { profileId ->
+                viewModel.markAltSpeedHintSeen()
+                viewModel.toggleAltSpeed(profileId)
+            },
+            showHint = !state.settings.hasSeenAltSpeedHint,
+            onDismissHint = viewModel::markAltSpeedHintSeen,
         )
     }
     // Only servers with a live session can answer; re-read as soon as one comes online.
