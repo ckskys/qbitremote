@@ -445,6 +445,16 @@ class QbRepository : TorrentBackend {
         }
     }
 
+    override suspend fun setAlternativeSpeedMode(enabled: Boolean): Result<Unit> = runCatching {
+        executeWithRetry { liveApi ->
+            // The endpoint only toggles, so read the current mode first to stay idempotent.
+            val current = liveApi.speedLimitsMode().trim() == "1"
+            if (current != enabled) {
+                liveApi.toggleSpeedLimitsMode().ensureSuccess("Toggle speed limit mode failed.")
+            }
+        }
+    }
+
     override suspend fun setTorrentShareRatio(hash: String, ratioLimit: Double): Result<Unit> = runCatching {
         require(hash.isNotBlank()) { "Invalid torrent hash." }
         executeWithRetry { liveApi ->
@@ -498,11 +508,12 @@ class QbRepository : TorrentBackend {
             if (request.uploadLimitBytes >= 0L) formFields["upLimit"] = request.uploadLimitBytes.toString()
             if (request.downloadLimitBytes >= 0L) formFields["dlLimit"] = request.downloadLimitBytes.toString()
 
-            executeWithRetry { liveApi ->
+            val formResponse = executeWithRetry { liveApi ->
                 liveApi.addTorrentsForm(formFields).also {
                     it.ensureSuccess("Add torrent failed.")
                 }
             }
+            ensureTorrentAdded(formResponse.body().orEmpty())
             return@runCatching
         }
 
@@ -544,9 +555,13 @@ class QbRepository : TorrentBackend {
                 it.ensureSuccess("Add torrent failed.")
             }
         }
-        val resultText = response.body().orEmpty().trim()
-        if (resultText.contains("fail", ignoreCase = true)) {
-            throw IllegalStateException("添加种子失败：$resultText")
+        ensureTorrentAdded(response.body().orEmpty())
+    }
+
+    private fun ensureTorrentAdded(bodyText: String) {
+        when (val outcome = parseQbAddTorrentResult(bodyText)) {
+            QbAddTorrentOutcome.Added -> Unit
+            is QbAddTorrentOutcome.Failed -> throw IllegalStateException(outcome.message)
         }
     }
 
@@ -772,9 +787,10 @@ class QbRepository : TorrentBackend {
         val successBody = response.body()?.trim().orEmpty()
         val errorBodyText = response.errorBody()?.string()?.trim().orEmpty()
         val loginText = successBody.ifBlank { errorBodyText }
-        val loginOk = response.isSuccessful && loginText.equals("Ok.", ignoreCase = true)
+        val loginOk = isQbLoginSuccess(response.isSuccessful, response.code(), loginText)
         if (loginOk) {
-            return LoginResult(success = true, detail = "$endpointLabel -> Ok.")
+            val reply = if (loginText.isBlank()) "${response.code()}" else "Ok."
+            return LoginResult(success = true, detail = "$endpointLabel -> $reply")
         }
 
         val wrongBackend = detectWrongBackend(

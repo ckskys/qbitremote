@@ -254,6 +254,8 @@ class TorrentRepository {
         withBackend(profileId) { fetchGlobalSpeedLimits() }
     suspend fun setGlobalSpeedLimits(profileId: String, limits: GlobalSpeedLimits) =
         withBackend(profileId) { setGlobalSpeedLimits(limits) }
+    suspend fun setAlternativeSpeedMode(profileId: String, enabled: Boolean) =
+        withBackend(profileId) { setAlternativeSpeedMode(enabled) }
 
     suspend fun setTorrentShareRatio(hash: String, ratioLimit: Double) =
         withBackend { setTorrentShareRatio(hash, ratioLimit) }

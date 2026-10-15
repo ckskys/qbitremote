@@ -1,5 +1,12 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -93,6 +100,7 @@ internal fun GlobalSpeedLimitDialog(
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
     onSave: (GlobalSpeedLimits) -> Unit,
+    onAlternativeModeChange: (Boolean) -> Unit = {},
 ) {
     val drafts = remember { mutableStateMapOf<String, GlobalSpeedLimitDraft>() }
     LaunchedEffect(selectedProfileId, limits) {
@@ -200,6 +208,12 @@ internal fun GlobalSpeedLimitDialog(
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
+                        SpeedLimitModeSelector(
+                            alternativeEnabled = limits.alternativeModeEnabled,
+                            enabled = !isSaving,
+                            onSelect = onAlternativeModeChange,
+                        )
+                        HorizontalDivider()
                         SpeedLimitSection(
                             title = stringResource(R.string.global_speed_limit_normal_section),
                             downloadValue = currentDraft.downloadLimitKb,
@@ -228,17 +242,6 @@ internal fun GlobalSpeedLimitDialog(
                         )
                         Text(
                             text = stringResource(R.string.global_speed_limit_unlimited_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = stringResource(
-                                when (limits.alternativeModeEnabled) {
-                                    true -> R.string.global_speed_limit_mode_alternative
-                                    false -> R.string.global_speed_limit_mode_normal
-                                    null -> R.string.global_speed_limit_mode_unknown
-                                },
-                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -385,6 +388,78 @@ private fun ServerProfile.displayName(): String = name.ifBlank {
     when (backendType) {
         ServerBackendType.QBITTORRENT -> "qBittorrent"
         ServerBackendType.TRANSMISSION -> "Transmission"
+    }
+}
+
+/** Two-segment switch between normal and alternative limits; applies immediately. */
+@Composable
+private fun SpeedLimitModeSelector(
+    alternativeEnabled: Boolean?,
+    enabled: Boolean,
+    onSelect: (Boolean) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.global_speed_limit_mode_title),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Medium,
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))
+                .padding(3.dp)
+                .selectableGroup(),
+        ) {
+            listOf(
+                false to stringResource(R.string.global_speed_limit_mode_option_normal),
+                true to stringResource(R.string.global_speed_limit_mode_option_alternative),
+            ).forEach { (alternative, label) ->
+                val selected = alternativeEnabled == alternative
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(
+                            if (selected) {
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            } else {
+                                Color.Transparent
+                            },
+                        )
+                        .selectable(
+                            selected = selected,
+                            enabled = enabled,
+                            role = Role.RadioButton,
+                            onClick = { if (!selected) onSelect(alternative) },
+                        )
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+        }
+        Text(
+            text = stringResource(
+                if (alternativeEnabled == null) {
+                    R.string.global_speed_limit_mode_unknown
+                } else {
+                    R.string.global_speed_limit_mode_hint
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

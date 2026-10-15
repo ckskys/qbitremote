@@ -1261,6 +1261,7 @@ class MainViewModel(
     fun retryGlobalSpeedLimitLoad() = globalSpeedLimits.retryGlobalSpeedLimitLoad()
     fun dismissGlobalSpeedLimitDialog() = globalSpeedLimits.dismissGlobalSpeedLimitDialog()
     fun saveGlobalSpeedLimits(limits: GlobalSpeedLimits) = globalSpeedLimits.saveGlobalSpeedLimits(limits)
+    fun setGlobalAlternativeSpeedMode(enabled: Boolean) = globalSpeedLimits.setAlternativeSpeedMode(enabled)
 
     fun dismissError() {
         _uiState.update { it.copy(errorMessage = null) }

@@ -1381,6 +1381,7 @@ fun MainScreen(viewModel: MainViewModel) {
                 onRetryGlobalSpeedLimitLoad = viewModel::retryGlobalSpeedLimitLoad,
                 onDismissGlobalSpeedLimitDialog = viewModel::dismissGlobalSpeedLimitDialog,
                 onSaveGlobalSpeedLimits = viewModel::saveGlobalSpeedLimits,
+                onSetAlternativeSpeedMode = viewModel::setGlobalAlternativeSpeedMode,
             )
 
         }

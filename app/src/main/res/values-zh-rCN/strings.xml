@@ -238,8 +238,6 @@
     <string name="global_speed_limit_alternative_download_label">备用下载限速（KiB/s）</string>
     <string name="global_speed_limit_alternative_upload_label">备用上传限速（KiB/s）</string>
     <string name="global_speed_limit_unlimited_hint">0 或留空表示不限速</string>
-    <string name="global_speed_limit_mode_normal">当前使用常规限速</string>
-    <string name="global_speed_limit_mode_alternative">当前使用备用限速</string>
     <string name="global_speed_limit_mode_unknown">当前限速模式未知</string>
     <string name="global_speed_limit_schedule_title">定时启用备用限速</string>
     <string name="global_speed_limit_schedule_desc">在设定时间段自动启用备用限速</string>
@@ -352,4 +350,8 @@
     <string name="detail_stat_upload">上传</string>
     <string name="detail_stat_download">下载</string>
     <string name="detail_stat_size">大小</string>
+    <string name="global_speed_limit_mode_title">当前生效的限速</string>
+    <string name="global_speed_limit_mode_option_normal">常规限速</string>
+    <string name="global_speed_limit_mode_option_alternative">备用限速</string>
+    <string name="global_speed_limit_mode_hint">点按即可立即切换，无需保存</string>
 </resources>

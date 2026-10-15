@@ -94,6 +94,50 @@ internal class GlobalSpeedLimitController(
         }
     }
 
+    /** Switch normal/alternative limits right away (independent of the Save button). */
+    fun setAlternativeSpeedMode(enabled: Boolean) {
+        val profileId = uiState.value.globalSpeedLimitProfileId
+        if (profileId.isBlank()) return
+        val previous = uiState.value.globalSpeedLimits
+        // Optimistic: flip the selector immediately, revert if the server refuses.
+        uiState.update { current ->
+            if (current.globalSpeedLimitProfileId != profileId) {
+                current
+            } else {
+                current.copy(globalSpeedLimits = current.globalSpeedLimits?.copy(alternativeModeEnabled = enabled))
+            }
+        }
+        scope.launch {
+            runCatching {
+                repository.setAlternativeSpeedMode(profileId, enabled).getOrThrow()
+                repository.fetchGlobalSpeedLimits(profileId).getOrNull()
+            }.onSuccess { readback ->
+                if (readback != null) {
+                    uiState.update { current ->
+                        if (current.globalSpeedLimitProfileId != profileId) {
+                            current
+                        } else {
+                            // Only the mode changed on the server; keep any unsaved edits elsewhere intact.
+                            current.copy(
+                                globalSpeedLimits = current.globalSpeedLimits
+                                    ?.copy(alternativeModeEnabled = readback.alternativeModeEnabled),
+                            )
+                        }
+                    }
+                }
+            }.onFailure { error ->
+                if (error is CancellationException) throw error
+                uiState.update { current ->
+                    val reverted = if (current.globalSpeedLimitProfileId == profileId) previous else current.globalSpeedLimits
+                    current.copy(
+                        globalSpeedLimits = reverted,
+                        errorMessage = UiMessage.Text(error.message ?: "切换限速模式失败"),
+                    )
+                }
+            }
+        }
+    }
+
     private fun loadGlobalSpeedLimits(profileId: String) {
         scope.launch {
             uiState.update {

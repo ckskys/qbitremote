@@ -244,6 +244,9 @@ interface QbApi {
 
     @GET("api/v2/transfer/speedLimitsMode")
     suspend fun speedLimitsMode(): String
+
+    @POST("api/v2/transfer/toggleSpeedLimitsMode")
+    suspend fun toggleSpeedLimitsMode(): Response<Unit>
 }
 
 

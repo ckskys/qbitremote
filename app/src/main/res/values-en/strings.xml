@@ -247,8 +247,6 @@
     <string name="global_speed_limit_alternative_download_label">Alt download limit (KiB/s)</string>
     <string name="global_speed_limit_alternative_upload_label">Alt upload limit (KiB/s)</string>
     <string name="global_speed_limit_unlimited_hint">0 or empty means unlimited</string>
-    <string name="global_speed_limit_mode_normal">Normal limits are active now</string>
-    <string name="global_speed_limit_mode_alternative">Alternative limits are active now</string>
     <string name="global_speed_limit_mode_unknown">Current limit mode unknown</string>
     <string name="global_speed_limit_schedule_title">Schedule alternative limits</string>
     <string name="global_speed_limit_schedule_desc">Apply alternative limits on a schedule</string>
@@ -355,4 +353,8 @@
     <string name="detail_stat_upload">Upload</string>
     <string name="detail_stat_download">Download</string>
     <string name="detail_stat_size">Size</string>
+    <string name="global_speed_limit_mode_title">Active limits</string>
+    <string name="global_speed_limit_mode_option_normal">Normal</string>
+    <string name="global_speed_limit_mode_option_alternative">Alternative</string>
+    <string name="global_speed_limit_mode_hint">Tap to switch instantly, no need to save</string>
 </resources>

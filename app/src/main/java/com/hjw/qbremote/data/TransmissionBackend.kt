@@ -347,6 +347,10 @@ class TransmissionBackend : TorrentBackend {
         )
     }
 
+    override suspend fun setAlternativeSpeedMode(enabled: Boolean): Result<Unit> = runCatching {
+        requireClient().sessionSet(buildJsonObject("alt-speed-enabled" to enabled))
+    }
+
     override suspend fun addTorrent(request: AddTorrentRequest): Result<Unit> = runCatching {
         require(request.urls.isNotBlank() || request.files.isNotEmpty()) {
             "Please provide a torrent URL or file."

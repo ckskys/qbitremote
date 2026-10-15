@@ -30,6 +30,7 @@ internal fun MainScreenDialogs(
     onRetryGlobalSpeedLimitLoad: () -> Unit,
     onDismissGlobalSpeedLimitDialog: () -> Unit,
     onSaveGlobalSpeedLimits: (GlobalSpeedLimits) -> Unit,
+    onSetAlternativeSpeedMode: (Boolean) -> Unit,
 ) {
     if (pendingDeleteProfile != null) {
         AlertDialog(
@@ -107,6 +108,7 @@ internal fun MainScreenDialogs(
             onRetry = onRetryGlobalSpeedLimitLoad,
             onDismiss = onDismissGlobalSpeedLimitDialog,
             onSave = onSaveGlobalSpeedLimits,
+            onAlternativeModeChange = onSetAlternativeSpeedMode,
         )
     }
 }
