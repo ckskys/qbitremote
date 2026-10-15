@@ -37,6 +37,7 @@ import com.hjw.qbremote.data.model.TransferInfo
 
 @Composable
 internal fun ServerDashboardPageContent(
+    altSpeed: AltSpeedControl,
     selectedServerProfile: ServerProfile?,
     showContent: Boolean,
     showDashboardCardHint: Boolean,
@@ -110,6 +111,7 @@ internal fun ServerDashboardPageContent(
                     swipeActionsEnabled = true,
                     showSwipeHint = showDashboardSwipeHint,
                     onDismissSwipeHint = onMarkDashboardSwipeHintSeen,
+                    altSpeed = altSpeed,
                 )
             }
 

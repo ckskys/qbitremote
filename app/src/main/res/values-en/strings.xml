@@ -357,4 +357,8 @@
     <string name="global_speed_limit_mode_option_normal">Normal</string>
     <string name="global_speed_limit_mode_option_alternative">Alternative</string>
     <string name="global_speed_limit_mode_hint">Tap to switch instantly, no need to save</string>
+    <string name="alt_speed_toggle_on">Alt limits</string>
+    <string name="alt_speed_toggle_partial">Partly alt</string>
+    <string name="alt_speed_toggle_desc_off">Switch to alternative speed limits</string>
+    <string name="alt_speed_toggle_desc_on">Switch back to normal speed limits</string>
 </resources>

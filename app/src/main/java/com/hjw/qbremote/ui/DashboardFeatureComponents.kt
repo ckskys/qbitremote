@@ -1,4 +1,6 @@
 package com.hjw.qbremote.ui
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.draw.drawBehind
 import com.hjw.qbremote.ui.theme.QbNumberStyles
@@ -211,6 +213,7 @@ internal fun ServerOverviewCard(
     swipeActionsEnabled: Boolean,
     showSwipeHint: Boolean,
     onDismissSwipeHint: () -> Unit,
+    altSpeed: AltSpeedControl = AltSpeedControl(),
 ) {
     val stateSummary = remember(torrents) { buildDashboardStateSummary(torrents) }
     val activeProfile = remember(serverProfiles, activeProfileId) {
@@ -402,6 +405,14 @@ internal fun ServerOverviewCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    val altMode = activeProfileId?.let { altSpeed.modes[it] }
+                    if (altMode != null) {
+                        AltSpeedToggle(
+                            state = if (altMode) AltSpeedState.ON else AltSpeedState.OFF,
+                            busy = activeProfileId in altSpeed.togglingIds,
+                            onClick = { altSpeed.onToggle(activeProfileId) },
+                        )
+                    }
                     TextButton(onClick = onOpenTorrentList) {
                         Text(
                             text = stringResource(R.string.dashboard_open_torrents),
@@ -529,6 +540,7 @@ internal fun MultiServerDashboardSection(
     onDragCancel: () -> Unit,
     onOpenServerDashboard: (String) -> Unit,
     onOpenGlobalSpeedLimits: () -> Unit,
+    altSpeed: AltSpeedControl = AltSpeedControl(),
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -537,6 +549,7 @@ internal fun MultiServerDashboardSection(
         DashboardAggregateOverviewCard(
             aggregate = aggregate,
             onOpenGlobalSpeedLimits = onOpenGlobalSpeedLimits,
+            altSpeed = altSpeed,
         )
         WalletServerCardStack(
             snapshots = snapshots,
@@ -561,6 +574,7 @@ internal fun MultiServerDashboardSection(
 private fun DashboardAggregateOverviewCard(
     aggregate: DashboardAggregateState,
     onOpenGlobalSpeedLimits: () -> Unit,
+    altSpeed: AltSpeedControl = AltSpeedControl(),
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -591,6 +605,18 @@ private fun DashboardAggregateOverviewCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                if (altSpeed.modes.isNotEmpty()) {
+                    val modes = altSpeed.modes.values
+                    AltSpeedToggle(
+                        state = when {
+                            modes.all { it } -> AltSpeedState.ON
+                            modes.any { it } -> AltSpeedState.PARTIAL
+                            else -> AltSpeedState.OFF
+                        },
+                        busy = altSpeed.togglingIds.isNotEmpty(),
+                        onClick = altSpeed.onToggleAll,
+                    )
+                }
                 TextButton(onClick = onOpenGlobalSpeedLimits) {
                     Text(
                         text = stringResource(R.string.global_speed_limit_action),
@@ -1758,6 +1784,62 @@ private fun DashboardStatusPill(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private enum class AltSpeedState { OFF, PARTIAL, ON }
+
+/**
+ * Turtle chip for the alternative speed limits. Off: a quiet icon; on / partly on:
+ * an accent-tinted pill with a label, so the slowed-down state is easy to notice.
+ */
+@Composable
+private fun AltSpeedToggle(
+    state: AltSpeedState,
+    busy: Boolean,
+    onClick: () -> Unit,
+) {
+    val active = state != AltSpeedState.OFF
+    val accent = MaterialTheme.colorScheme.primary
+    val contentColor = if (active) accent else MaterialTheme.colorScheme.onSurfaceVariant
+    val description = stringResource(
+        if (state == AltSpeedState.ON) R.string.alt_speed_toggle_desc_on else R.string.alt_speed_toggle_desc_off,
+    )
+    Row(
+        modifier = Modifier
+            .height(32.dp)
+            .clip(CircleShape)
+            .background(if (active) accent.copy(alpha = 0.14f) else Color.Transparent)
+            .clickable(enabled = !busy, role = Role.Switch, onClickLabel = description, onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(horizontal = if (active) 10.dp else 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = contentColor,
+            )
+        } else {
+            Icon(
+                painter = painterResource(R.drawable.ic_turtle),
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        if (active) {
+            Text(
+                text = stringResource(
+                    if (state == AltSpeedState.ON) R.string.alt_speed_toggle_on else R.string.alt_speed_toggle_partial,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor,
+                maxLines = 1,
             )
         }
     }

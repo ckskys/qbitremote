@@ -111,6 +111,9 @@ internal data class MainUiState(
     val globalSpeedLimitLoading: Boolean = false,
     val globalSpeedLimitSaving: Boolean = false,
     val globalSpeedLimitLoadFailed: Boolean = false,
+    // Alternative ("turtle") limit mode per reachable server profile, and the ones being switched.
+    val altSpeedModes: Map<String, Boolean> = emptyMap(),
+    val altSpeedTogglingIds: Set<String> = emptySet(),
     val sharedTorrentInput: SharedTorrentInput? = null,
     val notificationNavigationTarget: NotificationNavigationTarget? = null,
     val errorMessage: UiMessage? = null,

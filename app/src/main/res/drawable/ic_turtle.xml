@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Alternative ("turtle") speed limit mode, drawn in the same stroke style as the app icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- shell -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3.5,15.5 C3.5,10.5 6.8,7.5 10.5,7.5 C14.2,7.5 17.5,10.5 17.5,15.5 Z" />
+    <!-- shell pattern -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M7.5,15.5 L8.6,11.2 L12.4,11.2 L13.5,15.5 M8.6,11.2 L10.5,8 L12.4,11.2" />
+    <!-- head -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M17,13.2 L19.2,13.2 C20.4,13.2 21,12.4 21,11.5 C21,10.6 20.2,10 19.4,10 C18.4,10 17.8,10.8 17.6,11.6" />
+    <!-- legs -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M6,15.5 L5.5,18 M15,15.5 L15.5,18" />
+</vector>

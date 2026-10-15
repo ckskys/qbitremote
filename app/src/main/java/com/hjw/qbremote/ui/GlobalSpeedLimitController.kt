@@ -14,6 +14,8 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
 /** Global (server-wide) speed-limit dialog: open, switch server, load, save. Split out of MainViewModel. */
+private const val ALT_MODE_PARALLELISM = 4
+
 internal class GlobalSpeedLimitController(
     private val uiState: MutableStateFlow<MainUiState>,
     private val scope: CoroutineScope,
@@ -112,6 +114,8 @@ internal class GlobalSpeedLimitController(
                 repository.setAlternativeSpeedMode(profileId, enabled).getOrThrow()
                 repository.fetchGlobalSpeedLimits(profileId).getOrNull()
             }.onSuccess { readback ->
+                val confirmed = readback?.alternativeModeEnabled ?: enabled
+                uiState.update { it.copy(altSpeedModes = it.altSpeedModes + (profileId to confirmed)) }
                 if (readback != null) {
                     uiState.update { current ->
                         if (current.globalSpeedLimitProfileId != profileId) {
@@ -135,6 +139,82 @@ internal class GlobalSpeedLimitController(
                     )
                 }
             }
+        }
+    }
+
+    /** Re-read the mode of every given server; unreachable ones drop out of the map. */
+    fun refreshAltSpeedModes(profileIds: List<String>) {
+        val ids = profileIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (ids.isEmpty()) return
+        scope.launch {
+            val results = supervisorScope {
+                val gate = Semaphore(ALT_MODE_PARALLELISM)
+                ids.map { id ->
+                    // runCatching: a profile without a live session throws instead of returning a failure.
+                    async { id to gate.withPermit { runCatching { repository.fetchAlternativeSpeedMode(id).getOrNull() }.getOrNull() } }
+                }.awaitAll()
+            }
+            uiState.update { current ->
+                val known = current.serverProfiles.map { it.id }.toSet()
+                val next = current.altSpeedModes.toMutableMap()
+                results.forEach { (id, mode) ->
+                    // Never overwrite a server that is mid-switch with a stale read.
+                    if (id in current.altSpeedTogglingIds) return@forEach
+                    if (mode == null) next.remove(id) else next[id] = mode
+                }
+                // The caller passes every live server, so anything else has gone offline.
+                val keep = ids.toSet() + current.altSpeedTogglingIds
+                current.copy(altSpeedModes = next.filterKeys { it in known && it in keep })
+            }
+        }
+    }
+
+    /** One tap on the home card: if any server still uses normal limits, switch all to alternative; else back. */
+    fun toggleAltSpeedForAll() {
+        val modes = uiState.value.altSpeedModes
+        if (modes.isEmpty()) return
+        val target = !modes.values.all { it }
+        switchAltSpeed(modes.keys.toList(), target)
+    }
+
+    fun toggleAltSpeed(profileId: String) {
+        val current = uiState.value.altSpeedModes[profileId] ?: return
+        switchAltSpeed(listOf(profileId), !current)
+    }
+
+    private fun switchAltSpeed(profileIds: List<String>, enabled: Boolean) {
+        val ids = profileIds.filter { it !in uiState.value.altSpeedTogglingIds }
+        if (ids.isEmpty()) return
+        uiState.update { it.copy(altSpeedTogglingIds = it.altSpeedTogglingIds + ids) }
+        scope.launch {
+            val results = supervisorScope {
+                val gate = Semaphore(ALT_MODE_PARALLELISM)
+                ids.map { id ->
+                    async {
+                        id to gate.withPermit {
+                            runCatching {
+                                repository.setAlternativeSpeedMode(id, enabled).isSuccess &&
+                                    repository.fetchAlternativeSpeedMode(id).getOrNull() == enabled
+                            }.getOrDefault(false)
+                        }
+                    }
+                }.awaitAll()
+            }
+            val failed = results.count { !it.second }
+            uiState.update { current ->
+                val next = current.altSpeedModes.toMutableMap()
+                results.forEach { (id, ok) -> if (ok) next[id] = enabled }
+                current.copy(
+                    altSpeedModes = next,
+                    altSpeedTogglingIds = current.altSpeedTogglingIds - ids.toSet(),
+                    errorMessage = if (failed > 0) {
+                        UiMessage.Text("限速模式切换失败：${failed}/${ids.size} 台服务器未生效")
+                    } else {
+                        current.errorMessage
+                    },
+                )
+            }
+            if (failed > 0) refreshAltSpeedModes(ids)
         }
     }
 

@@ -445,6 +445,10 @@ class QbRepository : TorrentBackend {
         }
     }
 
+    override suspend fun fetchAlternativeSpeedMode(): Result<Boolean> = runCatching {
+        executeWithRetry { liveApi -> liveApi.speedLimitsMode().trim() == "1" }
+    }
+
     override suspend fun setAlternativeSpeedMode(enabled: Boolean): Result<Unit> = runCatching {
         executeWithRetry { liveApi ->
             // The endpoint only toggles, so read the current mode first to stay idempotent.

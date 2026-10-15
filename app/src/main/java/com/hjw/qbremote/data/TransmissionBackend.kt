@@ -347,6 +347,10 @@ class TransmissionBackend : TorrentBackend {
         )
     }
 
+    override suspend fun fetchAlternativeSpeedMode(): Result<Boolean> = runCatching {
+        requireClient().sessionGet().altSpeedEnabled
+    }
+
     override suspend fun setAlternativeSpeedMode(enabled: Boolean): Result<Unit> = runCatching {
         requireClient().sessionSet(buildJsonObject("alt-speed-enabled" to enabled))
     }

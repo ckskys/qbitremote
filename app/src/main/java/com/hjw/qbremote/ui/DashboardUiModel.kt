@@ -17,3 +17,12 @@ enum class DashboardChartCard(
 }
 
 val PanelShape = RoundedCornerShape(16.dp)
+
+/** Alternative ("turtle") speed-limit state and actions handed down to the dashboard cards. */
+@androidx.compose.runtime.Immutable
+internal data class AltSpeedControl(
+    val modes: Map<String, Boolean> = emptyMap(),
+    val togglingIds: Set<String> = emptySet(),
+    val onToggleAll: () -> Unit = {},
+    val onToggle: (String) -> Unit = {},
+)

@@ -716,6 +716,33 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
+    val altSpeedControl = remember(state.altSpeedModes, state.altSpeedTogglingIds) {
+        AltSpeedControl(
+            modes = state.altSpeedModes,
+            togglingIds = state.altSpeedTogglingIds,
+            onToggleAll = viewModel::toggleAltSpeedForAll,
+            onToggle = viewModel::toggleAltSpeed,
+        )
+    }
+    // Only servers with a live session can answer; re-read as soon as one comes online.
+    val altSpeedProfileIds = remember(state.dashboardServerSnapshots, state.activeServerProfileId, state.connected) {
+        buildList {
+            state.dashboardServerSnapshots
+                .filter { resolveServerSnapshotStatus(it) == ServerSnapshotStatus.LIVE }
+                .forEach { add(it.profileId) }
+            if (state.connected) state.activeServerProfileId?.let { add(it) }
+        }.distinct().sorted()
+    }
+    // Keep the turtle chips honest while a dashboard is on screen (a server-side
+    // scheduler can flip the mode on its own).
+    LaunchedEffect(currentPage, altSpeedProfileIds) {
+        if (currentPage != AppPage.DASHBOARD && currentPage != AppPage.SERVER_DASHBOARD) return@LaunchedEffect
+        while (true) {
+            viewModel.refreshAltSpeedModes(altSpeedProfileIds)
+            delay(ALT_SPEED_REFRESH_INTERVAL_MS)
+        }
+    }
+
     LaunchedEffect(currentPage, selectedTorrent?.hash) {
         if (currentPage != AppPage.TORRENT_LIST) {
             showTorrentSortMenu = false
@@ -1004,6 +1031,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                 onCancelServerStackDrag = ::cancelServerStackDrag,
                                 onOpenServerDashboard = ::openServerDashboard,
                                 onOpenGlobalSpeedLimits = viewModel::openGlobalSpeedLimitDialog,
+                                altSpeed = altSpeedControl,
                                 onDismissHomeTorrentEntryHint = viewModel::dismissHomeTorrentEntryHint,
                                 onOpenTorrentList = ::openTorrentListFromDashboard,
                                 onSwitchServerProfile = viewModel::switchServerProfile,
@@ -1013,6 +1041,7 @@ fun MainScreen(viewModel: MainViewModel) {
                             )
 
                             AppPage.SERVER_DASHBOARD -> serverDashboardRootPageContent(
+                                altSpeed = altSpeedControl,
                                 sessionKey = serverDashboardSessionKey,
                                 selectedServerProfile = selectedServerProfile,
                                 showContent = serverDashboardShowContent,
@@ -1387,3 +1416,5 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 }
+
+private const val ALT_SPEED_REFRESH_INTERVAL_MS = 60_000L

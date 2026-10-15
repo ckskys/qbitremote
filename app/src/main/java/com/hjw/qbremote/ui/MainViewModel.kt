@@ -1262,6 +1262,9 @@ class MainViewModel(
     fun dismissGlobalSpeedLimitDialog() = globalSpeedLimits.dismissGlobalSpeedLimitDialog()
     fun saveGlobalSpeedLimits(limits: GlobalSpeedLimits) = globalSpeedLimits.saveGlobalSpeedLimits(limits)
     fun setGlobalAlternativeSpeedMode(enabled: Boolean) = globalSpeedLimits.setAlternativeSpeedMode(enabled)
+    fun refreshAltSpeedModes(profileIds: List<String>) = globalSpeedLimits.refreshAltSpeedModes(profileIds)
+    fun toggleAltSpeedForAll() = globalSpeedLimits.toggleAltSpeedForAll()
+    fun toggleAltSpeed(profileId: String) = globalSpeedLimits.toggleAltSpeed(profileId)
 
     fun dismissError() {
         _uiState.update { it.copy(errorMessage = null) }

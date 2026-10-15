@@ -89,6 +89,8 @@ interface TorrentBackend {
     suspend fun setGlobalSpeedLimits(limits: GlobalSpeedLimits): Result<Unit>
     /** Switch between the normal and the alternative ("turtle") global speed limits. */
     suspend fun setAlternativeSpeedMode(enabled: Boolean): Result<Unit>
+    /** Whether the alternative ("turtle") limits are active right now. Cheap: one request. */
+    suspend fun fetchAlternativeSpeedMode(): Result<Boolean>
     suspend fun setTorrentShareRatio(hash: String, ratioLimit: Double): Result<Unit>
     suspend fun fetchTorrentPeers(hash: String): Result<List<com.hjw.qbremote.data.model.TorrentPeer>>
     suspend fun setFilePriority(

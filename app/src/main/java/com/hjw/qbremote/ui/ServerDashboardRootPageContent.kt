@@ -48,9 +48,11 @@ internal fun LazyListScope.serverDashboardRootPageContent(
     onMarkDashboardSwipeHintSeen: () -> Unit,
     onMarkDashboardCardHintSeen: () -> Unit,
     onOpenConnection: () -> Unit,
+    altSpeed: AltSpeedControl = AltSpeedControl(),
 ) {
     item(key = "server_dashboard_page_$sessionKey") {
         ServerDashboardPageContent(
+            altSpeed = altSpeed,
             selectedServerProfile = selectedServerProfile,
             showContent = showContent,
             showDashboardCardHint = showDashboardCardHint,
