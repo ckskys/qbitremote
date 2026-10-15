@@ -95,6 +95,10 @@ TorrentRemote 是一款原生 Android 应用（Kotlin + Jetpack Compose），用
 
 由 **蜂巢 @hjw666**（[个人主页](https://pting.club/users/hjw666)）独立开发与维护。
 
+## 社区
+
+感谢 [LINUX DO](https://linux.do) 社区的佬友们提供的反馈与支持。
+
 ## 许可证
 
 详见 [LICENSE](LICENSE)。内置字体 Geist、Geist Mono 采用 SIL Open Font License，见 [licenses/](licenses/)。

@@ -95,6 +95,10 @@ Only JDK 17 and an Android SDK (`ANDROID_HOME`) are needed. CI runs unit tests, 
 
 Built and maintained by **蜂巢 @hjw666** ([profile](https://pting.club/users/hjw666)).
 
+## Community
+
+Thanks to the [LINUX DO](https://linux.do) community for feedback and support.
+
 ## License
 
 See [LICENSE](LICENSE). Bundled fonts (Geist, Geist Mono) are under the SIL Open Font License, see [licenses/](licenses/).
