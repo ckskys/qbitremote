@@ -736,18 +736,16 @@ fun MainScreen(viewModel: MainViewModel) {
             onDismissHint = viewModel::markAltSpeedHintSeen,
         )
     }
-    // Only servers with a live session can answer; re-read as soon as one comes online.
-    val altSpeedProfileIds = remember(state.dashboardServerSnapshots, state.activeServerProfileId, state.connected) {
-        buildList {
-            state.dashboardServerSnapshots
-                .filter { resolveServerSnapshotStatus(it) == ServerSnapshotStatus.LIVE }
-                .forEach { add(it.profileId) }
-            if (state.connected) state.activeServerProfileId?.let { add(it) }
-        }.distinct().sorted()
-    }
+    // Ask every server: the ones with a live session answer, the rest drop out of the
+    // map. (Guessing "online" from snapshot status dropped the active server now and
+    // then, so a one-tap switch silently skipped it.) Re-ask when a server comes online.
+    val altSpeedProfileIds = remember(state.serverProfiles) { state.serverProfiles.map { it.id }.sorted() }
+    val liveServerCount = state.dashboardServerSnapshots.count {
+        resolveServerSnapshotStatus(it) == ServerSnapshotStatus.LIVE
+    } + if (state.connected) 1 else 0
     // Keep the turtle chips honest while a dashboard is on screen (a server-side
     // scheduler can flip the mode on its own).
-    LaunchedEffect(currentPage, altSpeedProfileIds) {
+    LaunchedEffect(currentPage, altSpeedProfileIds, liveServerCount) {
         if (currentPage != AppPage.DASHBOARD && currentPage != AppPage.SERVER_DASHBOARD) return@LaunchedEffect
         while (true) {
             viewModel.refreshAltSpeedModes(altSpeedProfileIds)

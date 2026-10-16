@@ -66,6 +66,12 @@ android {
             // there instead of turning minification back off.
             isMinifyEnabled = true
             isShrinkResources = true
+            // Bundle the symbol tables of the AndroidX native libs
+            // (graphics.path, datastore) so Play can symbolicate native
+            // crashes/ANRs and stops warning about missing debug symbols.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             if (hasReleaseSigningConfig) {
                 signingConfig = signingConfigs.getByName("release")
             }

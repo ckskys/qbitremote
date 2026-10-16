@@ -441,15 +441,17 @@ class TransmissionBackend : TorrentBackend {
         val sessionStatsDeferred = async { client.sessionStats() }
         val session = sessionDeferred.await()
         val sessionStats = sessionStatsDeferred.await()
-        val downloadLimit = if (session.speedLimitDownEnabled) {
-            session.speedLimitDown.toLong().coerceAtLeast(0L) * 1024L
-        } else {
-            0L
+        // The effective limits: in alternative ("turtle") mode Transmission applies
+        // alt-speed-down/up regardless of the normal limits' enabled flags.
+        val downloadLimit = when {
+            session.altSpeedEnabled -> session.altSpeedDown.toLong().coerceAtLeast(0L) * 1024L
+            session.speedLimitDownEnabled -> session.speedLimitDown.toLong().coerceAtLeast(0L) * 1024L
+            else -> 0L
         }
-        val uploadLimit = if (session.speedLimitUpEnabled) {
-            session.speedLimitUp.toLong().coerceAtLeast(0L) * 1024L
-        } else {
-            0L
+        val uploadLimit = when {
+            session.altSpeedEnabled -> session.altSpeedUp.toLong().coerceAtLeast(0L) * 1024L
+            session.speedLimitUpEnabled -> session.speedLimitUp.toLong().coerceAtLeast(0L) * 1024L
+            else -> 0L
         }
         val freeSpace = session.downloadDir.takeIf { it.isNotBlank() }?.let { path ->
             client.freeSpace(path).getOrElse { 0L }

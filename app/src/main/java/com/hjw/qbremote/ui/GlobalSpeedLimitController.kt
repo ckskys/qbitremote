@@ -1,5 +1,6 @@
 package com.hjw.qbremote.ui
 
+import com.hjw.qbremote.data.model.TransferInfo
 import com.hjw.qbremote.data.GlobalSpeedLimits
 import com.hjw.qbremote.data.TorrentRepository
 import kotlinx.coroutines.CancellationException
@@ -20,6 +21,9 @@ internal class GlobalSpeedLimitController(
     private val uiState: MutableStateFlow<MainUiState>,
     private val scope: CoroutineScope,
     private val repository: TorrentRepository,
+    // Re-poll the servers right away so cards showing the active limits update
+    // with the switch instead of on the next refresh tick.
+    private val onLimitModeChanged: () -> Unit = {},
 ) {
     fun openGlobalSpeedLimitDialog() {
         val state = uiState.value
@@ -115,7 +119,11 @@ internal class GlobalSpeedLimitController(
                 repository.fetchGlobalSpeedLimits(profileId).getOrNull()
             }.onSuccess { readback ->
                 val confirmed = readback?.alternativeModeEnabled ?: enabled
-                uiState.update { it.copy(altSpeedModes = it.altSpeedModes + (profileId to confirmed)) }
+                val limits = fetchEffectiveLimits(listOf(profileId))
+                uiState.update {
+                    it.withEffectiveLimits(limits).copy(altSpeedModes = it.altSpeedModes + (profileId to confirmed))
+                }
+                onLimitModeChanged()
                 if (readback != null) {
                     uiState.update { current ->
                         if (current.globalSpeedLimitProfileId != profileId) {
@@ -162,7 +170,7 @@ internal class GlobalSpeedLimitController(
                     if (id in current.altSpeedTogglingIds) return@forEach
                     if (mode == null) next.remove(id) else next[id] = mode
                 }
-                // The caller passes every live server, so anything else has gone offline.
+                // The caller asks every server; ids it no longer lists were removed.
                 val keep = ids.toSet() + current.altSpeedTogglingIds
                 current.copy(altSpeedModes = next.filterKeys { it in known && it in keep })
             }
@@ -201,10 +209,12 @@ internal class GlobalSpeedLimitController(
                 }.awaitAll()
             }
             val failed = results.count { !it.second }
+            val switched = results.filter { it.second }.map { it.first }
+            val limits = fetchEffectiveLimits(switched)
             uiState.update { current ->
                 val next = current.altSpeedModes.toMutableMap()
                 results.forEach { (id, ok) -> if (ok) next[id] = enabled }
-                current.copy(
+                current.withEffectiveLimits(limits).copy(
                     altSpeedModes = next,
                     altSpeedTogglingIds = current.altSpeedTogglingIds - ids.toSet(),
                     errorMessage = if (failed > 0) {
@@ -214,8 +224,47 @@ internal class GlobalSpeedLimitController(
                     },
                 )
             }
+            if (failed < ids.size) onLimitModeChanged()
             if (failed > 0) refreshAltSpeedModes(ids)
         }
+    }
+
+    /**
+     * The limits the server applies right now (one cheap transfer-info read each),
+     * so the cards change in the same frame as the turtle instead of on the next
+     * full refresh, which polls every server and can take several seconds.
+     */
+    private suspend fun fetchEffectiveLimits(profileIds: List<String>): Map<String, Pair<Long, Long>> {
+        if (profileIds.isEmpty()) return emptyMap()
+        return supervisorScope {
+            val gate = Semaphore(ALT_MODE_PARALLELISM)
+            profileIds.map { id ->
+                async {
+                    gate.withPermit {
+                        runCatching { repository.fetchTransferInfo(id).getOrNull() }.getOrNull()
+                            ?.let { id to (it.downloadRateLimit to it.uploadRateLimit) }
+                    }
+                }
+            }.awaitAll().filterNotNull().toMap()
+        }
+    }
+
+    private fun MainUiState.withEffectiveLimits(limits: Map<String, Pair<Long, Long>>): MainUiState {
+        if (limits.isEmpty()) return this
+        fun TransferInfo.patched(id: String) = limits[id]?.let { (down, up) ->
+            copy(downloadRateLimit = down, uploadRateLimit = up)
+        } ?: this
+        val active = activeServerProfileId
+        return copy(
+            dashboardServerSnapshots = dashboardServerSnapshots.map { snapshot ->
+                if (snapshot.profileId in limits) {
+                    snapshot.copy(transferInfo = snapshot.transferInfo.patched(snapshot.profileId))
+                } else {
+                    snapshot
+                }
+            },
+            transferInfo = if (active != null && active in limits) transferInfo.patched(active) else transferInfo,
+        )
     }
 
     private fun loadGlobalSpeedLimits(profileId: String) {

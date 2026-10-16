@@ -39,6 +39,16 @@
 -keep class com.hjw.qbremote.data.TransmissionFile { *; }
 -keep class com.hjw.qbremote.data.TransmissionFileStat { *; }
 
+# Everything under data/ that Gson builds reflectively (DTOs, envelopes, persisted
+# caches and their nested types). Without this R8 renames fields and, worse, turns
+# classes that the code never instantiates directly into abstract ones, which made
+# the Transmission detail page fail with "Abstract classes can't be instantiated".
+# Constructors + fields only: methods are still shrunk and obfuscated.
+-keep class com.hjw.qbremote.data.** {
+    <init>(...);
+    <fields>;
+}
+
 # Preserve serialized field names used by Gson reflection.
 -keepclassmembers,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;

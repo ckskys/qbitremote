@@ -113,6 +113,8 @@ class MainViewModel(
     private var serverSchedulerJob: Job? = null
     private var autoConnectAttempted = false
     private var isRefreshInProgress = false
+    // A refresh requested while one is running; run it right after instead of dropping it.
+    private var refreshQueued = false
     private val isAppForeground = MutableStateFlow(true)
     private var hydratedDashboardScopeKey: String? = null
     private var initialSettingsLoaded = false
@@ -146,7 +148,12 @@ class MainViewModel(
     private val nextServerRefreshAt = mutableMapOf<String, Long>()
     private val serverRefreshFailureStreaks = mutableMapOf<String, Int>()
     private val dashboardPersistence = DashboardPersistence(connectionStore)
-    private val globalSpeedLimits = GlobalSpeedLimitController(_uiState, viewModelScope, repository)
+    private val globalSpeedLimits = GlobalSpeedLimitController(
+        uiState = _uiState,
+        scope = viewModelScope,
+        repository = repository,
+        onLimitModeChanged = { refreshSoon() },
+    )
     private val torrentActions = TorrentActionsController(
         uiState = _uiState,
         scope = viewModelScope,
@@ -1147,6 +1154,11 @@ class MainViewModel(
         }
     }
 
+    /** Refresh now, or right after the refresh that is already running. */
+    private fun refreshSoon() {
+        if (isRefreshInProgress) refreshQueued = true else refresh()
+    }
+
     fun refresh(manual: Boolean = false) {
         if (isRefreshInProgress) return
         isRefreshInProgress = true
@@ -1211,6 +1223,10 @@ class MainViewModel(
                 }
             } finally {
                 isRefreshInProgress = false
+                if (refreshQueued) {
+                    refreshQueued = false
+                    refresh()
+                }
                 if (manual) {
                     _uiState.update {
                         if (it.isManualRefreshing) {
