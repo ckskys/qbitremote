@@ -14,22 +14,10 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.input.KeyboardType
 import com.hjw.qbremote.R
 import com.hjw.qbremote.data.ServerBackendType
-import com.hjw.qbremote.ui.theme.qbGlassSubtleContainerColor
 import com.hjw.qbremote.data.ServerCapabilities
 import com.hjw.qbremote.data.ServerProfile
 import com.hjw.qbremote.data.model.TorrentInfo
@@ -392,23 +380,4 @@ private fun ServerDashboardPieCard(
         compactLegendRows = compactLegendRows,
     )
 }
-
-@Composable
-private fun ServerDashboardTrackerSiteCard(
-    displayState: ServerDashboardDisplayState,
-    showHideButton: Boolean,
-    onRevealHide: () -> Unit,
-    onHide: () -> Unit,
-) {
-    DashboardHorizontalBarChartCard(
-        title = stringResource(R.string.dashboard_tracker_site_share_title),
-        entries = displayState.trackerSiteBarEntries,
-        emptyText = stringResource(R.string.chart_no_data),
-        showHideButton = showHideButton,
-        onRevealHide = onRevealHide,
-        onHide = onHide,
-    )
-}
-
-
 

@@ -1,5 +1,6 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
@@ -360,7 +361,7 @@ private fun ServerSelectorField(
             value = selected?.displayName().orEmpty(),
             onValueChange = {},
             modifier = Modifier
-                .menuAnchor()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 .fillMaxWidth(),
             readOnly = true,
             enabled = enabled,
@@ -605,7 +606,7 @@ private fun ScheduleDaySelector(
             value = stringResource(selected.labelRes()),
             onValueChange = {},
             modifier = Modifier
-                .menuAnchor()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 .fillMaxWidth(),
             readOnly = true,
             enabled = enabled,

@@ -2,19 +2,12 @@ package com.hjw.qbremote
 
 import android.Manifest
 import android.app.Activity
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
@@ -27,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalView
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.os.LocaleListCompat
@@ -42,8 +34,8 @@ import com.hjw.qbremote.data.AppTheme
 import com.hjw.qbremote.data.ConnectionStore
 import com.hjw.qbremote.data.TorrentRepository
 import com.hjw.qbremote.ui.MainScreen
+import com.hjw.qbremote.notifications.TorrentCompletionNotifier
 import com.hjw.qbremote.ui.MainViewModel
-import com.hjw.qbremote.ui.SystemEventNotifier
 import com.hjw.qbremote.ui.resolveEffectiveAppTheme
 import com.hjw.qbremote.ui.theme.QBRemoteTheme
 import kotlinx.coroutines.flow.collect
@@ -55,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     // Snapshot state so onNewIntent (activity already in foreground) triggers
     // recomposition and the LaunchedEffect below actually consumes the link.
     private var pendingSharedUrl: String? by mutableStateOf(null)
+    private var pendingNotificationTarget: Pair<String, String>? by mutableStateOf(null)
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -68,17 +61,10 @@ class MainActivity : AppCompatActivity() {
         // Android 15, flagged by Play Console). Bar colors come from the theme
         // (res/values*/themes.xml); this just lets content draw behind the bars.
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        createNotificationChannel()
         requestNotificationPermissionIfNeeded()
 
         val connectionStore = ConnectionStore(applicationContext)
         val repository = TorrentRepository()
-        val appContext = applicationContext
-        val systemEventNotifier = object : SystemEventNotifier {
-            override fun notifyTorrentCompleted(torrentName: String) {
-                notifyTorrentCompleted(appContext, torrentName, vibrate = true)
-            }
-        }
 
         lifecycleScope.launch {
             connectionStore.settingsFlow
@@ -88,10 +74,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         handleShareIntent(intent)
+        // Only on a fresh start: after recreation the same intent would re-open the torrent.
+        if (savedInstanceState == null) handleNotificationIntent(intent)
 
         setContent {
             val vm: MainViewModel = viewModel(
-                factory = MainViewModel.factory(connectionStore, repository, systemEventNotifier)
+                factory = MainViewModel.factory(connectionStore, repository)
             )
             val uiState by vm.uiState.collectAsStateWithLifecycle()
             val effectiveAppTheme = resolveEffectiveAppTheme(
@@ -127,6 +115,12 @@ class MainActivity : AppCompatActivity() {
                 pendingSharedUrl = null
             }
 
+            LaunchedEffect(pendingNotificationTarget) {
+                val (profileId, torrentHash) = pendingNotificationTarget ?: return@LaunchedEffect
+                vm.openTorrentFromNotification(profileId, torrentHash)
+                pendingNotificationTarget = null
+            }
+
             QBRemoteTheme(
                 appTheme = effectiveAppTheme,
                 customBackgroundToneIsLight = uiState.settings.customBackgroundToneIsLight,
@@ -140,6 +134,15 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleShareIntent(intent)
+        handleNotificationIntent(intent)
+    }
+
+    /** A tapped completion notification carries the server and torrent to open. */
+    private fun handleNotificationIntent(intent: Intent) {
+        val profileId = intent.getStringExtra(TorrentCompletionNotifier.EXTRA_PROFILE_ID)?.trim().orEmpty()
+        val torrentHash = intent.getStringExtra(TorrentCompletionNotifier.EXTRA_TORRENT_HASH)?.trim().orEmpty()
+        if (profileId.isBlank() || torrentHash.isBlank()) return
+        pendingNotificationTarget = profileId to torrentHash
     }
 
     private fun handleShareIntent(intent: Intent) {
@@ -148,23 +151,6 @@ class MainActivity : AppCompatActivity() {
         val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
         if (sharedText.isBlank()) return
         pendingSharedUrl = sharedText
-    }
-
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            NOTIFICATION_CHANNEL_ID,
-            getString(R.string.notification_channel_torrent),
-            NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply {
-            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .build()
-            setSound(soundUri, audioAttributes)
-            enableVibration(true)
-        }
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -186,40 +172,6 @@ class MainActivity : AppCompatActivity() {
         AppCompatDelegate.setApplicationLocales(locales)
     }
 
-    companion object {
-        private const val NOTIFICATION_CHANNEL_ID = "torrent_status"
-
-        fun notifyTorrentCompleted(context: Context, name: String, vibrate: Boolean) {
-            val publicNotification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_qbremote_foreground)
-                .setContentTitle(context.getString(R.string.notification_torrent_completed))
-                .build()
-            val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_qbremote_foreground)
-                .setContentTitle(context.getString(R.string.notification_torrent_completed))
-                .setContentText(name)
-                .setAutoCancel(true)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-                .setPublicVersion(publicNotification)
-                .build()
-            val manager = context.getSystemService(NotificationManager::class.java)
-            manager.notify(name.hashCode(), notification)
-
-            if (vibrate) {
-                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val vm = context.getSystemService(VibratorManager::class.java)
-                    vm?.defaultVibrator
-                } else {
-                    @Suppress("DEPRECATION")
-                    context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                }
-                vibrator?.vibrate(
-                    VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE)
-                )
-            }
-        }
-    }
 }
 
 @Composable

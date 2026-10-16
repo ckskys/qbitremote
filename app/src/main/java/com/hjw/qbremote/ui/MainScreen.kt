@@ -1,4 +1,13 @@
 package com.hjw.qbremote.ui
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.mutableFloatStateOf
@@ -34,10 +43,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -61,13 +66,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.ClipEntry
+import android.content.ClipData
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hjw.qbremote.R
@@ -91,7 +97,6 @@ private data class PageAnimationState(
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalFoundationApi::class,
-    ExperimentalMaterialApi::class,
     ExperimentalAnimationApi::class,
 )
 @Composable
@@ -104,7 +109,7 @@ fun MainScreen(viewModel: MainViewModel) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
 
     var currentPage by rememberSaveable { mutableStateOf(AppPage.DASHBOARD) }
     var previousPage by rememberSaveable { mutableStateOf(AppPage.DASHBOARD) }
@@ -211,8 +216,15 @@ fun MainScreen(viewModel: MainViewModel) {
     val tagOptionsForAdd = remember(state.tagOptions) {
         buildSortedDistinctTrimmedStrings(state.tagOptions)
     }
-    val pathOptionsForAdd = remember(state.torrents) {
-        buildSortedDistinctTrimmedStrings(state.torrents.map { torrent -> torrent.savePath })
+    // Save-path suggestions need every torrent; build them once when the add sheet
+    // opens (off the main thread) instead of on every refresh tick.
+    var pathOptionsForAdd by remember { mutableStateOf(emptyList<String>()) }
+    LaunchedEffect(showAddTorrentSheet) {
+        if (!showAddTorrentSheet) return@LaunchedEffect
+        val torrents = viewModel.uiState.value.torrents
+        pathOptionsForAdd = withContext(Dispatchers.Default) {
+            buildSortedDistinctTrimmedStrings(torrents.map { torrent -> torrent.savePath })
+        }
     }
     val selectedTorrent = remember(torrentListBaseSnapshot.torrents, selectedTorrentIdentity) {
         torrentListBaseSnapshot.torrents.firstOrNull { torrentIdentityKey(it) == selectedTorrentIdentity }
@@ -372,8 +384,8 @@ fun MainScreen(viewModel: MainViewModel) {
     fun copyToClipboard(value: String, successMessageRes: Int) {
         val text = value.trim()
         if (text.isBlank()) return
-        clipboardManager.setText(AnnotatedString(text))
         scope.launch {
+            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, text)))
             snackbarHostState.showSnackbar(localResources.getString(successMessageRes))
         }
     }
@@ -424,6 +436,33 @@ fun MainScreen(viewModel: MainViewModel) {
             previousPage = currentPage
         }
         currentPage = AppPage.TORRENT_DETAIL
+    }
+
+    // Tapped completion notification: switch to its server, wait for the torrent to
+    // arrive in the list (bounded), then open its details.
+    val notificationTarget = state.notificationNavigationTarget
+    LaunchedEffect(notificationTarget?.id) {
+        val target = notificationTarget ?: return@LaunchedEffect
+        val current = viewModel.uiState.value
+        val alreadyListed = current.activeServerProfileId == target.profileId &&
+            current.torrents.any { it.hash.equals(target.torrentHash, ignoreCase = true) }
+        if (!alreadyListed) {
+            // Via the server's dashboard: that (re)loads its torrent list (the home page
+            // only keeps aggregate snapshots, possibly from cache), and Back from the
+            // detail lands there.
+            openServerDashboard(target.profileId)
+        }
+        val torrent = withTimeoutOrNull(NOTIFICATION_TORRENT_WAIT_MS) {
+            viewModel.uiState
+                .map { current ->
+                    current.torrents.takeIf { current.activeServerProfileId == target.profileId }
+                        ?.firstOrNull { it.hash.equals(target.torrentHash, ignoreCase = true) }
+                }
+                .filterNotNull()
+                .first()
+        }
+        viewModel.clearNotificationNavigationTarget()
+        torrent?.let(::openTorrentDetail)
     }
 
     fun backToPreviousPage() {
@@ -1115,6 +1154,8 @@ fun MainScreen(viewModel: MainViewModel) {
                                     categoryOptions = state.categoryOptions,
                                     tagOptions = state.tagOptions,
                                     visibleItems = visibleTorrentItems,
+                                    emptyState = torrentListDisplayState.emptyState,
+                                    onClearFilters = viewModel::resetTorrentListFilters,
                                     isPendingAction = ::isPendingAction,
                                     onOpenDetails = ::openTorrentDetail,
                                     onOpenConnection = { openSettings() },
@@ -1249,23 +1290,23 @@ fun MainScreen(viewModel: MainViewModel) {
                         ) &&
                     (state.connected || state.serverProfiles.isNotEmpty())
                 ) {
-                    val pullRefreshState = rememberPullRefreshState(
-                        refreshing = state.isManualRefreshing,
+                    val pullToRefreshState = rememberPullToRefreshState()
+                    PullToRefreshBox(
+                        isRefreshing = state.isManualRefreshing,
                         onRefresh = { viewModel.refresh(manual = true) },
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pullRefresh(pullRefreshState),
+                        modifier = Modifier.fillMaxSize(),
+                        state = pullToRefreshState,
+                        indicator = {
+                            PullToRefreshDefaults.Indicator(
+                                state = pullToRefreshState,
+                                isRefreshing = state.isManualRefreshing,
+                                modifier = Modifier.align(Alignment.TopCenter),
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        },
                     ) {
                         animatedPageContent()
-                        PullRefreshIndicator(
-                            refreshing = state.isManualRefreshing,
-                            state = pullRefreshState,
-                            modifier = Modifier.align(Alignment.TopCenter),
-                            backgroundColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.primary,
-                        )
                     }
                 } else {
                     animatedPageContent()
@@ -1428,3 +1469,4 @@ fun MainScreen(viewModel: MainViewModel) {
 }
 
 private const val ALT_SPEED_REFRESH_INTERVAL_MS = 60_000L
+private const val NOTIFICATION_TORRENT_WAIT_MS = 15_000L

@@ -1,5 +1,6 @@
 package com.hjw.qbremote.ui
 
+import androidx.core.graphics.get
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -146,7 +147,7 @@ private fun analyzeImageTone(file: File): Boolean {
         val stepY = max(1, bitmap.height / 12)
         for (y in 0 until bitmap.height step stepY) {
             for (x in 0 until bitmap.width step stepX) {
-                totalLuminance += ColorUtils.calculateLuminance(bitmap.getPixel(x, y))
+                totalLuminance += ColorUtils.calculateLuminance(bitmap[x, y])
                 sampleCount += 1
             }
         }

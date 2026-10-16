@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">TorrentRemote</string>
     <string name="notification_channel_torrent">Torrent Status</string>
     <string name="notification_torrent_completed">Torrent download completed</string>
@@ -107,7 +107,6 @@
     <string name="no_tags">No tags</string>
     <string name="no_category">No category</string>
     <string name="no_torrent_data">No torrent data</string>
-    <string name="site_unknown">Unknown</string>
 
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
@@ -131,21 +130,7 @@
     <string name="detail_tracker_copied">Tracker URL copied</string>
     <string name="detail_export_success">Torrent exported</string>
     <string name="detail_export_failed">Failed to export torrent</string>
-    <string name="torrent_size_fmt">Size: %1$s</string>
-    <string name="torrent_uploaded_downloaded_fmt">Uploaded: %1$s | Downloaded: %2$s</string>
-    <string name="torrent_speed_fmt">Upload speed: %1$s | Download speed: %2$s</string>
-    <string name="torrent_category_fmt">Category: %1$s</string>
-    <string name="torrent_save_path_fmt">Save path: %1$s</string>
-    <string name="torrent_ratio_fmt">Ratio: %1$s</string>
     <string name="torrent_cross_seed_chip_fmt">Cross-seed %1$d</string>
-    <string name="torrent_seed_count_fmt">Seeds: %1$d (%2$d)</string>
-    <string name="torrent_peer_count_fmt">Peers: %1$d (%2$d)</string>
-    <string name="added_fmt">Added: %1$s</string>
-    <string name="last_activity_fmt">Last active: %1$s</string>
-    <string name="cross_seed_detail_title">Cross-seed details</string>
-    <string name="cross_seed_detail_source_fmt">Source: %1$s</string>
-    <string name="cross_seed_detail_count_fmt">In group: %1$d</string>
-    <string name="cross_seed_detail_site_fmt">Site: %1$s</string>
 
     <string name="menu_open_drawer">Open menu</string>
     <string name="menu_manage_servers">Manage servers</string>
@@ -333,15 +318,18 @@
     <string name="limit_value_fmt">Limit %1$s</string>
     <string name="total_value_fmt">Total %1$s</string>
     <string name="limit_unlimited">Unlimited</string>
-    <string name="torrent_selection_count">%1$d selected</string>
+    <string name="torrent_selection_count" tools:ignore="PluralsCandidate">%1$d selected</string>
     <string name="select_all">Select all</string>
-    <string name="delete_torrents_title_fmt">Delete %1$d torrents</string>
+    <string name="delete_torrents_title_fmt" tools:ignore="PluralsCandidate">Delete %1$d torrents</string>
     <string name="exit_selection">Exit selection</string>
     <string name="active_just_now">just now</string>
     <string name="server_test_connection">Test</string>
     <string name="server_test_running">Testing connection…</string>
     <string name="server_test_success_fmt">Connected. Server version %1$s</string>
-    <string name="detail_peers_connected_fmt">%1$d connected peers</string>
+    <plurals name="detail_peers_connected_fmt">
+        <item quantity="one">%1$d connected peer</item>
+        <item quantity="other">%1$d connected peers</item>
+    </plurals>
     <string name="detail_peers_empty">No connected peers</string>
     <string name="file_priority_skip">Skip</string>
     <string name="file_priority_normal">Normal</string>
@@ -364,4 +352,8 @@
     <string name="alt_speed_hint_title">This is the alternative speed limit switch</string>
     <string name="alt_speed_hint_body">Tap to switch between normal and alternative limits. Set both in Limit settings.</string>
     <string name="alt_speed_hint_dismiss">Got it</string>
+    <string name="torrent_list_empty_search">No torrents match your search</string>
+    <string name="torrent_list_empty_filter">No torrents match the filters</string>
+    <string name="torrent_list_empty_search_filter">No torrents match your search and filters</string>
+    <string name="torrent_list_clear_filters">Clear filters</string>
 </resources>

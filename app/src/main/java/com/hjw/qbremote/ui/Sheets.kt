@@ -8,7 +8,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -65,7 +63,6 @@ import com.hjw.qbremote.data.ServerCapabilities
 import com.hjw.qbremote.data.ServerBackendType
 import com.hjw.qbremote.data.ServerProfile
 import com.hjw.qbremote.data.model.AddTorrentFile
-import com.hjw.qbremote.ui.theme.qbGlassCardColors
 import com.hjw.qbremote.ui.theme.qbGlassOutlineColor
 import com.hjw.qbremote.ui.theme.qbGlassSubtleContainerColor
 import kotlinx.coroutines.delay

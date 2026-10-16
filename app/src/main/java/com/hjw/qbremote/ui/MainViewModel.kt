@@ -10,20 +10,15 @@ import com.hjw.qbremote.data.BackendConnectionError
 import com.hjw.qbremote.data.CachedDashboardServerSnapshot
 import com.hjw.qbremote.data.ConnectionSettings
 import com.hjw.qbremote.data.ConnectionStore
-import com.hjw.qbremote.data.DailyCountryUploadTrackingSnapshot
-import com.hjw.qbremote.data.DailyUploadTrackingSnapshot
 import com.hjw.qbremote.data.CachedDailyTagUploadStat
 import com.hjw.qbremote.data.GlobalSpeedLimits
 import com.hjw.qbremote.data.ServerBackendType
-import com.hjw.qbremote.data.ServerDashboardPreferences
 import com.hjw.qbremote.data.ServerProfile
 import com.hjw.qbremote.data.TorrentRepository
 import com.hjw.qbremote.data.UiPreferencePatch
 import com.hjw.qbremote.data.model.AddTorrentFile
 import com.hjw.qbremote.data.model.AddTorrentRequest
-import com.hjw.qbremote.data.model.CountryPeerSnapshot
 import com.hjw.qbremote.data.model.DailyCountryUploadStats
-import com.hjw.qbremote.data.model.TorrentInfo
 import com.hjw.qbremote.data.model.TorrentTracker
 import com.hjw.qbremote.data.model.TransferInfo
 import kotlinx.coroutines.CancellationException
@@ -48,18 +43,15 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.time.LocalDate
 
 class MainViewModel(
     private val connectionStore: ConnectionStore,
     private val repository: TorrentRepository,
-    private val systemEventNotifier: SystemEventNotifier = NoOpSystemEventNotifier,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MainUiState())
     internal val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
@@ -148,6 +140,12 @@ class MainViewModel(
     private val nextServerRefreshAt = mutableMapOf<String, Long>()
     private val serverRefreshFailureStreaks = mutableMapOf<String, Int>()
     private val dashboardPersistence = DashboardPersistence(connectionStore)
+    private val dashboardPreferences = ServerDashboardPreferencesController(
+        uiState = _uiState,
+        scope = viewModelScope,
+        connectionStore = connectionStore,
+        resolveProfileSettings = { profileId -> resolveProfileSettings(profileId) },
+    )
     private val globalSpeedLimits = GlobalSpeedLimitController(
         uiState = _uiState,
         scope = viewModelScope,
@@ -269,6 +267,13 @@ class MainViewModel(
         torrentListFilterState.update { current ->
             val next = if (current.tagFilter == tag) "" else tag
             if (current.tagFilter == next) current else current.copy(tagFilter = next)
+        }
+    }
+
+    /** Drops state/category/tag filters; the search query and sort order stay. */
+    internal fun resetTorrentListFilters() {
+        torrentListFilterState.update { current ->
+            clearTorrentListFilters(current).takeIf { it != current } ?: current
         }
     }
 
@@ -409,16 +414,6 @@ class MainViewModel(
             update = { it.copy(hasSeenAltSpeedHint = true) },
         )
     }
-
-    fun markDashboardHideHintSeen() = persistUiPreferences(
-        patch = UiPreferencePatch(hasSeenDashboardHideHint = true),
-        update = { it.copy(hasSeenDashboardHideHint = true) },
-    )
-
-    fun markDashboardHiddenSnackSeen() = persistUiPreferences(
-        patch = UiPreferencePatch(hasSeenDashboardHiddenSnack = true),
-        update = { it.copy(hasSeenDashboardHiddenSnack = true) },
-    )
 
     fun updateRefreshScene(scene: RefreshScene) {
         _uiState.update { current ->
@@ -819,11 +814,6 @@ class MainViewModel(
         }
     }
 
-    fun selectDashboardProfile(profileId: String) {
-        if (profileId.isBlank()) return
-        switchServerProfile(profileId)
-    }
-
     fun reorderServerProfiles(profileIds: List<String>) {
         val normalizedIds = profileIds.map { it.trim() }.filter { it.isNotBlank() }
         if (normalizedIds.isEmpty()) return
@@ -838,140 +828,31 @@ class MainViewModel(
         }
     }
 
+    // ---- Per-server dashboard cards (ServerDashboardPreferencesController) ----
     fun updateServerDashboardCardVisibility(
         profileId: String,
         card: DashboardChartCard,
         visible: Boolean,
         onComplete: (Boolean) -> Unit = {},
-    ) {
-        if (profileId.isBlank()) return
-        viewModelScope.launch {
-            val fallbackSettings = resolveProfileSettings(profileId) ?: _uiState.value.settings
-            runCatching {
-                connectionStore.updateServerDashboardPreferences(profileId, fallbackSettings) { current ->
-                    val visibleCards = current.visibleCards.toMutableList()
-                    if (visible) {
-                        if (!visibleCards.contains(card.storageKey)) visibleCards += card.storageKey
-                    } else {
-                        visibleCards.remove(card.storageKey)
-                    }
-                    current.copy(visibleCards = visibleCards)
-                }
-            }.onSuccess { preferences ->
-                _uiState.update { current ->
-                    current.copy(
-                        serverDashboardPreferences = current.serverDashboardPreferences + (profileId to preferences),
-                    )
-                }
-                onComplete(true)
-            }.onFailure { error ->
-                _uiState.update { current ->
-                    current.copy(errorMessage = UiMessage.Text(error.message ?: "更新图表显示失败"))
-                }
-                onComplete(false)
-            }
-        }
-    }
+    ) = dashboardPreferences.setCardVisibility(profileId, card, visible, onComplete)
 
     fun updateServerDashboardCardsVisibility(
         profileId: String,
         cards: List<DashboardChartCard>,
         visible: Boolean,
         onComplete: (Boolean) -> Unit = {},
-    ) {
-        if (profileId.isBlank()) return
-        val normalizedCards = cards.distinct()
-        if (normalizedCards.isEmpty()) {
-            onComplete(true)
-            return
-        }
-        viewModelScope.launch {
-            val fallbackSettings = resolveProfileSettings(profileId) ?: _uiState.value.settings
-            runCatching {
-                connectionStore.updateServerDashboardPreferences(profileId, fallbackSettings) { current ->
-                    val visibleCards = current.visibleCards.toMutableList()
-                    normalizedCards.forEach { card ->
-                        if (visible) {
-                            if (card.storageKey !in visibleCards) {
-                                visibleCards += card.storageKey
-                            }
-                        } else {
-                            visibleCards.remove(card.storageKey)
-                        }
-                    }
-                    current.copy(
-                        visibleCards = visibleCards.toSet().toList(),
-                    )
-                }
-            }.onSuccess { updatedPreferences ->
-                _uiState.update { current ->
-                    current.copy(
-                        serverDashboardPreferences = current.serverDashboardPreferences
-                            .toMutableMap()
-                            .apply { this[profileId] = updatedPreferences },
-                    )
-                }
-                onComplete(true)
-            }.onFailure {
-                onComplete(false)
-            }
-        }
-    }
+    ) = dashboardPreferences.setCardsVisibility(profileId, cards, visible, onComplete = onComplete)
 
     fun updateServerDashboardCardOrder(
         profileId: String,
         order: List<DashboardChartCard>,
         onComplete: (Boolean) -> Unit = {},
-    ) {
-        if (profileId.isBlank()) return
-        viewModelScope.launch {
-            val fallbackSettings = resolveProfileSettings(profileId) ?: _uiState.value.settings
-            runCatching {
-                connectionStore.updateServerDashboardPreferences(profileId, fallbackSettings) { current ->
-                    current.copy(cardOrder = order.joinToString(",") { it.storageKey })
-                }
-            }.onSuccess { preferences ->
-                _uiState.update { current ->
-                    current.copy(
-                        serverDashboardPreferences = current.serverDashboardPreferences + (profileId to preferences),
-                    )
-                }
-                onComplete(true)
-            }.onFailure { error ->
-                _uiState.update { current ->
-                    current.copy(errorMessage = UiMessage.Text(error.message ?: "更新图表排序失败"))
-                }
-                onComplete(false)
-            }
-        }
-    }
+    ) = dashboardPreferences.setCardOrder(profileId, order, onComplete)
 
     fun resetServerDashboardPreferences(
         profileId: String,
         onComplete: (Boolean) -> Unit = {},
-    ) {
-        if (profileId.isBlank()) return
-        viewModelScope.launch {
-            val fallbackSettings = resolveProfileSettings(profileId) ?: _uiState.value.settings
-            val defaults = defaultServerDashboardPreferences(fallbackSettings)
-            runCatching {
-                connectionStore.saveServerDashboardPreferences(profileId, defaults)
-                defaults
-            }.onSuccess { preferences ->
-                _uiState.update { current ->
-                    current.copy(
-                        serverDashboardPreferences = current.serverDashboardPreferences + (profileId to preferences),
-                    )
-                }
-                onComplete(true)
-            }.onFailure { error ->
-                _uiState.update { current ->
-                    current.copy(errorMessage = UiMessage.Text(error.message ?: "恢复图表设置失败"))
-                }
-                onComplete(false)
-            }
-        }
-    }
+    ) = dashboardPreferences.reset(profileId, onComplete)
 
     fun markServerStackReorderHintSeen() = persistUiPreferences(
         patch = UiPreferencePatch(hasSeenServerStackReorderHint = true),
@@ -1016,28 +897,6 @@ class MainViewModel(
         if (state.serverProfiles.isNotEmpty() && state.activeServerProfileId.isNullOrBlank()) return
         autoConnectAttempted = true
         connectInternal(persistSettings = false, showErrorOnFailure = false)
-    }
-
-    private fun defaultServerDashboardPreferences(settings: ConnectionSettings): ServerDashboardPreferences {
-        val isTransmission = settings.serverBackendType == ServerBackendType.TRANSMISSION
-        val defaultKeys = if (isTransmission) {
-            listOf(
-                DashboardChartCard.CATEGORY_SHARE.storageKey,
-                DashboardChartCard.TAG_UPLOAD.storageKey,
-                DashboardChartCard.TORRENT_STATE.storageKey,
-                DashboardChartCard.TRACKER_SITE.storageKey,
-            )
-        } else {
-            listOf(
-                DashboardChartCard.COUNTRY_FLOW.storageKey,
-                DashboardChartCard.CATEGORY_SHARE.storageKey,
-                DashboardChartCard.DAILY_UPLOAD.storageKey,
-            )
-        }
-        return ServerDashboardPreferences(
-            visibleCards = defaultKeys,
-            cardOrder = defaultKeys.joinToString(","),
-        )
     }
 
     private fun bumpActiveProfileRequestVersion() {
@@ -1129,28 +988,6 @@ class MainViewModel(
                     }
                     backgroundJobManager.stopAll()
                 }
-        }
-    }
-
-    private fun stopBackgroundJobs() {
-        backgroundJobManager.stopAll()
-        dashboardAggregationJob?.cancel()
-        serverSchedulerJob?.cancel()
-        dashboardAggregationJob = null
-        serverSchedulerJob = null
-    }
-
-    private fun resetUiForServerSwitch(
-        settings: ConnectionSettings,
-        activeProfileId: String?,
-    ) {
-        _uiState.update {
-            applyServerSwitchReset(
-                current = it,
-                settings = settings,
-                activeProfileId = activeProfileId,
-                capabilities = repository.capabilitiesFor(settings),
-            )
         }
     }
 
@@ -2039,15 +1876,6 @@ class MainViewModel(
         )
     }
 
-    private suspend fun saveActiveDashboardServerSnapshot() {
-        val state = _uiState.value
-        val activeProfileId = state.activeServerProfileId ?: return
-        saveDashboardServerSnapshotForProfile(
-            profileId = activeProfileId,
-            stateSnapshot = state,
-        )
-    }
-
     private suspend fun saveDashboardServerSnapshotForProfile(
         profileId: String,
         stateSnapshot: MainUiState,
@@ -2118,7 +1946,6 @@ class MainViewModel(
     ): String {
         return realtimeSpeedTracker.resolveScopeKey(snapshots, currentDailyUploadTrackingScopeKey())
     }
-
 
     private fun maybeQueueBackendRepair(
         profileId: String,
@@ -2412,7 +2239,6 @@ class MainViewModel(
             runCatching { dashboardPersistence.flushThrottledPersistence() }
         }
         repository.clearAllSessions()
-        super.onCleared()
     }
 
     companion object {
@@ -2420,16 +2246,12 @@ class MainViewModel(
         fun factory(
             connectionStore: ConnectionStore,
             repository: TorrentRepository,
-            systemEventNotifier: SystemEventNotifier = NoOpSystemEventNotifier,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return MainViewModel(connectionStore, repository, systemEventNotifier) as T
+                return MainViewModel(connectionStore, repository) as T
             }
         }
     }
 }
-
-
-
 

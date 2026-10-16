@@ -34,7 +34,6 @@ import java.net.URI
 import java.util.Base64
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt
 
 class TransmissionBackend : TorrentBackend {
     override val backendType: ServerBackendType = ServerBackendType.TRANSMISSION

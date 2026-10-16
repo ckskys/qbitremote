@@ -1,7 +1,6 @@
 package com.hjw.qbremote.data
 
 import com.hjw.qbremote.data.model.TorrentInfo
-import com.hjw.qbremote.ui.RealtimeSpeedPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame

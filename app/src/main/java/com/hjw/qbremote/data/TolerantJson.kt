@@ -30,8 +30,8 @@ private object TolerantScalarAdapterFactory : TypeAdapterFactory {
             Int::class.javaObjectType -> ScalarAdapter(nullable = true, fallback = null) { it.toLongOrClamp().coerceToInt() }
             Long::class.javaPrimitiveType -> ScalarAdapter(nullable = false, fallback = 0L) { it.toLongOrClamp() }
             Long::class.javaObjectType -> ScalarAdapter(nullable = true, fallback = null) { it.toLongOrClamp() }
-            Double::class.javaPrimitiveType -> ScalarAdapter(nullable = false, fallback = 0.0) { it.toDouble() }
-            Double::class.javaObjectType -> ScalarAdapter(nullable = true, fallback = null) { it.toDouble() }
+            Double::class.javaPrimitiveType -> ScalarAdapter(nullable = false, fallback = 0.0) { it }
+            Double::class.javaObjectType -> ScalarAdapter(nullable = true, fallback = null) { it }
             Boolean::class.javaPrimitiveType -> BooleanAdapter(nullable = false)
             Boolean::class.javaObjectType -> BooleanAdapter(nullable = true)
             String::class.java -> StringAdapter

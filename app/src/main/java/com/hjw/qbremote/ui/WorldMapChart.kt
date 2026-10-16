@@ -10,8 +10,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.luminance
@@ -162,7 +160,7 @@ private fun parseWorldMapSvg(svg: String): ParsedWorldMap {
             XmlPullParser.START_TAG -> {
                 when (parser.name) {
                     "svg" -> {
-                        Unit
+                        // Root element: its attributes are not needed.
                     }
 
                     "g" -> {

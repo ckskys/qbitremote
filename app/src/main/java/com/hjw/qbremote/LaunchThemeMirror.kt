@@ -1,5 +1,6 @@
 package com.hjw.qbremote
 
+import androidx.core.content.edit
 import android.app.Activity
 import android.app.UiModeManager
 import android.content.Context
@@ -32,7 +33,7 @@ internal object LaunchThemeMirror {
             val mode = if (dark) UiModeManager.MODE_NIGHT_YES else UiModeManager.MODE_NIGHT_NO
             if (prefs.getInt(KEY_APPLIED_SYSTEM_MODE, -1) != mode) {
                 activity.getSystemService(UiModeManager::class.java)?.setApplicationNightMode(mode)
-                prefs.edit().putInt(KEY_APPLIED_SYSTEM_MODE, mode).apply()
+                prefs.edit { putInt(KEY_APPLIED_SYSTEM_MODE, mode) }
             }
         }
     }
@@ -41,6 +42,6 @@ internal object LaunchThemeMirror {
     fun save(context: Context, dark: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.contains(KEY_DARK) && prefs.getBoolean(KEY_DARK, true) == dark) return
-        prefs.edit().putBoolean(KEY_DARK, dark).apply()
+        prefs.edit { putBoolean(KEY_DARK, dark) }
     }
 }

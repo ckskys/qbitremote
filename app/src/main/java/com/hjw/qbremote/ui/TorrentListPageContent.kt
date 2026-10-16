@@ -1,50 +1,32 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 import com.hjw.qbremote.R
 import com.hjw.qbremote.data.model.TorrentInfo
 import com.hjw.qbremote.ui.theme.qbGlassStrongContainerColor
@@ -64,6 +46,8 @@ internal fun LazyListScope.torrentListPageContent(
     categoryOptions: List<String>,
     tagOptions: List<String>,
     visibleItems: List<VisibleTorrentItem>,
+    emptyState: TorrentListEmptyState,
+    onClearFilters: () -> Unit,
     isPendingAction: (String) -> Boolean,
     onOpenDetails: (TorrentInfo) -> Unit,
     onOpenConnection: () -> Unit,
@@ -151,12 +135,8 @@ internal fun LazyListScope.torrentListPageContent(
             }
         }
         if (visibleItems.isEmpty()) {
-            item {
-                Text(
-                    text = stringResource(R.string.no_torrent_data),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+            item(key = "torrent_list_empty") {
+                TorrentListEmptyMessage(emptyState = emptyState, onClearFilters = onClearFilters)
             }
         }
     } else if (showRestorePlaceholder) {
@@ -289,4 +269,38 @@ internal data class TorrentListSelection(
     val onSwipeDelete: (TorrentInfo) -> Unit = {},
 ) {
     val active: Boolean get() = selectedHashes.isNotEmpty()
+}
+
+/** Says why the list is empty; when filters hide everything, offers to clear them. */
+@Composable
+private fun TorrentListEmptyMessage(
+    emptyState: TorrentListEmptyState,
+    onClearFilters: () -> Unit,
+) {
+    val message = when (emptyState) {
+        TorrentListEmptyState.SEARCH_NO_RESULTS -> R.string.torrent_list_empty_search
+        TorrentListEmptyState.FILTER_NO_RESULTS -> R.string.torrent_list_empty_filter
+        TorrentListEmptyState.SEARCH_FILTER_NO_RESULTS -> R.string.torrent_list_empty_search_filter
+        TorrentListEmptyState.NONE, TorrentListEmptyState.NO_TORRENTS -> R.string.no_torrent_data
+    }
+    val filtersActive = emptyState == TorrentListEmptyState.FILTER_NO_RESULTS ||
+        emptyState == TorrentListEmptyState.SEARCH_FILTER_NO_RESULTS
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(message),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (filtersActive) {
+            TextButton(onClick = onClearFilters) {
+                Text(stringResource(R.string.torrent_list_clear_filters))
+            }
+        }
+    }
 }

@@ -1,196 +1,76 @@
 package com.hjw.qbremote.ui
-import androidx.compose.ui.semantics.Role
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.draw.drawBehind
 import com.hjw.qbremote.ui.theme.QbNumberStyles
 import androidx.compose.foundation.shape.CircleShape
-import android.Manifest
 import com.hjw.qbremote.ui.theme.QbTransferColors
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.togetherWith
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
-import android.os.SystemClock
-import android.provider.OpenableColumns
-import android.provider.Settings
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import com.hjw.qbremote.data.AppLanguage
-import com.hjw.qbremote.data.AppTheme
 import com.hjw.qbremote.R
 import com.hjw.qbremote.data.CachedDashboardServerSnapshot
 import com.hjw.qbremote.data.ConnectionSettings
 import com.hjw.qbremote.data.ServerBackendType
-import com.hjw.qbremote.data.ServerCapabilities
 import com.hjw.qbremote.data.ServerDashboardPreferences
 import com.hjw.qbremote.data.ServerProfile
-import com.hjw.qbremote.data.defaultCapabilitiesFor
-import com.hjw.qbremote.data.model.AddTorrentFile
-import com.hjw.qbremote.data.model.TorrentFileInfo
 import com.hjw.qbremote.data.model.TorrentInfo
-import com.hjw.qbremote.data.model.TorrentProperties
-import com.hjw.qbremote.data.model.TorrentTracker
 import com.hjw.qbremote.data.model.TransferInfo
 import com.hjw.qbremote.ui.theme.qbGlassCardColors
 import com.hjw.qbremote.ui.theme.qbGlassChipColor
 import com.hjw.qbremote.ui.theme.qbGlassOutlineColor
-import com.hjw.qbremote.ui.theme.qbGlassStrongContainerColor
 import com.hjw.qbremote.ui.theme.qbGlassSubtleContainerColor
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.yield
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.net.URI
-import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.roundToInt
 
 @Composable
 internal fun ServerOverviewCard(
@@ -321,7 +201,7 @@ internal fun ServerOverviewCard(
                         tint = MaterialTheme.colorScheme.primary,
                         onClick = {
                             revealOffset = 0f
-                            activeProfile?.id?.let(onEditServerProfile)
+                            onEditServerProfile(activeProfile.id)
                         },
                     )
                     ServerOverviewActionButton(
@@ -330,7 +210,7 @@ internal fun ServerOverviewCard(
                         tint = MaterialTheme.colorScheme.error,
                         onClick = {
                             revealOffset = 0f
-                            activeProfile?.id?.let(onRequestDeleteServerProfile)
+                            onRequestDeleteServerProfile(activeProfile.id)
                         },
                     )
                 }
@@ -707,657 +587,6 @@ private fun AggregateSpeedFigure(
     }
 }
 
-private val WalletServerCardHeightAnimationSpec = spring<Dp>(
-    dampingRatio = 1f,
-    stiffness = 900f,
-)
-
-@Composable
-private fun WalletServerCardStack(
-    snapshots: List<CachedDashboardServerSnapshot>,
-    draggingProfileId: String?,
-    settlingProfileId: String?,
-    draggingOffsetY: () -> Float,
-    settlingOffsetY: () -> Float,
-    draggingTargetIndex: Int,
-    dragSession: VerticalReorderSession<String>?,
-    showReorderHint: Boolean,
-    onDismissReorderHint: () -> Unit,
-    onStartDrag: (String) -> Unit,
-    onDragDelta: (String, Float) -> Unit,
-    onDragEnd: () -> Unit,
-    onDragCancel: () -> Unit,
-    onOpenServerDashboard: (String) -> Unit,
-) {
-    val orderedSnapshots = snapshots
-    val paletteIndexByProfileId = remember(orderedSnapshots) {
-        orderedSnapshots
-            .map { it.profileId }
-            .distinct()
-            .sorted()
-            .mapIndexed { index, profileId -> profileId to index }
-            .toMap()
-    }
-    val serverStackGestureKey = remember(orderedSnapshots) {
-        orderedSnapshots.joinToString(separator = "|") { it.profileId }
-    }
-    // Where every card will sit if the drag is dropped now. The front-card
-    // presentation and z-order follow this so the stack stays a valid stack
-    // mid-drag and the drop commit changes nothing visually.
-    val projectedIndexByProfileId = remember(orderedSnapshots, dragSession, draggingTargetIndex) {
-        resolveProjectedReorderOrder(
-            items = orderedSnapshots.map { it.profileId },
-            dragSession = dragSession,
-            draggingTargetIndex = draggingTargetIndex,
-        ).withIndex().associate { (index, profileId) -> profileId to index }
-    }
-    val stackHeight = if (orderedSnapshots.isEmpty()) {
-        0.dp
-    } else {
-        HomeServerStackExpandedCardHeight + HomeServerStackExposedHeight * (orderedSnapshots.size - 1)
-    }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.server_stack_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.server_stack_subtitle),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            // Animated so the stack below slides up instead of jumping when the
-            // hint goes away (it is dismissed right after the first reorder).
-            AnimatedVisibility(
-                visible = showReorderHint,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically(),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    DashboardEntryHintBubble(
-                        text = stringResource(R.string.server_stack_reorder_hint),
-                        dismissDescription = stringResource(R.string.dismiss_hint),
-                        onDismiss = onDismissReorderHint,
-                    )
-                }
-            }
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(stackHeight),
-        ) {
-            orderedSnapshots.withIndex().toList().asReversed().forEach { (index, snapshot) ->
-                key(snapshot.profileId) {
-                    val isSettlingCard = settlingProfileId == snapshot.profileId
-                    val projectedIndex = projectedIndexByProfileId[snapshot.profileId] ?: index
-                    WalletServerStackCard(
-                        snapshot = snapshot,
-                        gestureKey = serverStackGestureKey,
-                        stackedIndex = index,
-                        paletteIndex = paletteIndexByProfileId[snapshot.profileId] ?: index,
-                        cardHeight = HomeServerStackExpandedCardHeight,
-                        collapsedCardHeight = HomeServerStackCollapsedCardHeight,
-                        exposedHeight = HomeServerStackExposedHeight,
-                        selected = projectedIndex == 0,
-                        zOrderIndex = projectedIndex,
-                        stackCount = orderedSnapshots.size,
-                        isDragging = draggingProfileId == snapshot.profileId && !isSettlingCard,
-                        isSettling = isSettlingCard,
-                        dragOffsetY = { if (draggingProfileId == snapshot.profileId && !isSettlingCard) draggingOffsetY() else 0f },
-                        settlingOffsetY = { if (isSettlingCard) settlingOffsetY() else 0f },
-                        siblingOffsetY = calculateServerStackSiblingOffset(
-                            profileId = snapshot.profileId,
-                            draggingProfileId = draggingProfileId,
-                            draggingTargetIndex = draggingTargetIndex,
-                            dragSession = dragSession,
-                        ),
-                        animateSiblingOffset = dragSession != null,
-                        onDragStart = { onStartDrag(snapshot.profileId) },
-                        onDragDelta = { deltaY -> onDragDelta(snapshot.profileId, deltaY) },
-                        onDragEnd = onDragEnd,
-                        onDragCancel = onDragCancel,
-                        onClick = { onOpenServerDashboard(snapshot.profileId) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun WalletServerStackCard(
-    snapshot: CachedDashboardServerSnapshot,
-    gestureKey: String,
-    stackedIndex: Int,
-    paletteIndex: Int,
-    cardHeight: Dp,
-    collapsedCardHeight: Dp,
-    exposedHeight: Dp,
-    selected: Boolean,
-    stackCount: Int,
-    // Draw order slot; during a drag this is the projected slot, not the original.
-    zOrderIndex: Int = stackedIndex,
-    isDragging: Boolean,
-    isSettling: Boolean,
-    dragOffsetY: () -> Float,
-    settlingOffsetY: () -> Float,
-    siblingOffsetY: Float,
-    animateSiblingOffset: Boolean,
-    onDragStart: () -> Unit,
-    onDragDelta: (Float) -> Unit,
-    onDragEnd: () -> Unit,
-    onDragCancel: () -> Unit,
-    onClick: () -> Unit,
-) {
-    val palette = remember(snapshot.profileId, paletteIndex) {
-        walletCardPalette(paletteIndex)
-    }
-    val stateLabel = when (resolveServerSnapshotStatus(snapshot)) {
-        ServerSnapshotStatus.LIVE -> stringResource(R.string.server_snapshot_live_state)
-        ServerSnapshotStatus.CACHED_OFFLINE -> stringResource(R.string.server_snapshot_stale_state)
-        ServerSnapshotStatus.CONNECTING -> stringResource(R.string.server_snapshot_connecting_state)
-        ServerSnapshotStatus.UNREACHABLE -> stringResource(R.string.server_snapshot_unreachable_state)
-    }
-    val exposedStepPx = with(LocalDensity.current) { exposedHeight.toPx() }
-    val cornerShape = RoundedCornerShape(16.dp)
-    val collapsedShape = RoundedCornerShape(
-        topStart = 16.dp,
-        topEnd = 16.dp,
-        bottomStart = 0.dp,
-        bottomEnd = 0.dp,
-    )
-    val uploadLimitText = formatRateLimit(
-        value = snapshot.transferInfo.uploadRateLimit,
-        unlimitedLabel = stringResource(R.string.limit_unlimited),
-    )
-    val downloadLimitText = formatRateLimit(
-        value = snapshot.transferInfo.downloadRateLimit,
-        unlimitedLabel = stringResource(R.string.limit_unlimited),
-    )
-    val serverNameTextStyle = MaterialTheme.typography.titleMedium.copy(
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-    )
-    // Opaque tonal layers: deeper cards in the stack sit one step darker. Must stay
-    // opaque (even over a custom background) or stacked cards ghost through.
-    val colorScheme = MaterialTheme.colorScheme
-    val cardContainerColor = when (stackCount - 1 - stackedIndex) {
-        0 -> colorScheme.surfaceContainerHigh
-        1 -> lerp(colorScheme.surfaceContainer, colorScheme.surfaceContainerHigh, 0.5f)
-        else -> colorScheme.surfaceContainer
-    }
-    val isLive = resolveServerSnapshotStatus(snapshot) == ServerSnapshotStatus.LIVE
-    val clickSuppressionThresholdPx = with(LocalDensity.current) {
-        ServerCardClickSuppressionDragThreshold.toPx()
-    }
-    val presentation = remember(selected, isDragging, isSettling) {
-        resolveWalletServerStackCardPresentation(
-            selected = selected,
-            isDragging = isDragging,
-            isSettling = isSettling,
-        )
-    }
-    val cardShape = if (presentation.showExpandedLayout) cornerShape else collapsedShape
-    var isPressed by remember(snapshot.profileId) { mutableStateOf(false) }
-    var lastDragFinishedAt by remember(snapshot.profileId) { mutableLongStateOf(0L) }
-    var dragDistanceSinceStart by remember(snapshot.profileId) { mutableFloatStateOf(0f) }
-    val latestOnDragStart by rememberUpdatedState(onDragStart)
-    val latestOnDragDelta by rememberUpdatedState(onDragDelta)
-    val latestOnDragEnd by rememberUpdatedState(onDragEnd)
-    val latestOnDragCancel by rememberUpdatedState(onDragCancel)
-    val latestOnClick by rememberUpdatedState(onClick)
-    val animatedSiblingOffset by animateFloatAsState(
-        targetValue = siblingOffsetY,
-        animationSpec = if (animateSiblingOffset) {
-            ReorderSiblingOffsetAnimationSpec
-        } else {
-            snap()
-        },
-        label = "walletServerSiblingOffset",
-    )
-    // Position comes from the original slot only; movement during a drag is
-    // carried by the sibling/drag offsets. (`selected` may already reflect the
-    // projected front card, so it must not feed into the base position.)
-    val baseTranslationY = (stackCount - 1 - stackedIndex) * exposedStepPx
-    val displayHeight by animateDpAsState(
-        targetValue = if (presentation.showExpandedLayout) cardHeight else collapsedCardHeight,
-        animationSpec = WalletServerCardHeightAnimationSpec,
-        label = "walletServerCardHeight",
-    )
-    val pressedScale by animateFloatAsState(
-        targetValue = if (isPressed && !isDragging) 0.985f else 1f,
-        animationSpec = tween(durationMillis = 90),
-        label = "walletServerPressedScale",
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(displayHeight)
-            .graphicsLayer {
-                translationY = baseTranslationY + when {
-                    isDragging || isSettling -> 0f
-                    // Hard zero once the reorder session is gone (same fix as the
-                    // dashboard cards): animateFloatAsState snaps one frame late, so
-                    // right after the order commit the new base position plus the
-                    // stale sibling offset drew every card one slot off for a frame.
-                    !animateSiblingOffset -> 0f
-                    else -> animatedSiblingOffset
-                }
-                shadowElevation = 0f
-            }
-            .pointerInput(snapshot.profileId, gestureKey) {
-                if (stackCount < 2) return@pointerInput
-                detectDragGesturesAfterLongPress(
-                    onDragStart = {
-                        isPressed = false
-                        dragDistanceSinceStart = 0f
-                        latestOnDragStart()
-                    },
-                    onDragEnd = {
-                        isPressed = false
-                        lastDragFinishedAt = resolveServerCardClickSuppressionTimestamp(
-                            dragDistanceSinceStart = dragDistanceSinceStart,
-                            clickSuppressionThresholdPx = clickSuppressionThresholdPx,
-                            currentTimeMillis = SystemClock.elapsedRealtime(),
-                        )
-                        latestOnDragEnd()
-                    },
-                    onDragCancel = {
-                        isPressed = false
-                        lastDragFinishedAt = resolveServerCardClickSuppressionTimestamp(
-                            dragDistanceSinceStart = dragDistanceSinceStart,
-                            clickSuppressionThresholdPx = clickSuppressionThresholdPx,
-                            currentTimeMillis = SystemClock.elapsedRealtime(),
-                        )
-                        latestOnDragCancel()
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        dragDistanceSinceStart += kotlin.math.abs(dragAmount.y)
-                        latestOnDragDelta(dragAmount.y)
-                    },
-                )
-            }
-            .pointerInput(snapshot.profileId, gestureKey, lastDragFinishedAt) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        try {
-                            tryAwaitRelease()
-                        } finally {
-                            isPressed = false
-                        }
-                    },
-                    onTap = {
-                        if (
-                            shouldSuppressServerCardClick(
-                                lastDragFinishedAt = lastDragFinishedAt,
-                                currentTimeMillis = SystemClock.elapsedRealtime(),
-                            )
-                        ) {
-                            return@detectTapGestures
-                        }
-                        isPressed = false
-                        latestOnClick()
-                    }
-                )
-            }
-            .zIndex(
-                // Only the card under the finger floats above the stack. A settling
-                // card already uses its final slot's z-order, so clearing the drag
-                // state after the settle animation doesn't flip the overlap.
-                if (isDragging) {
-                    (stackCount + 1).toFloat()
-                } else {
-                    (stackCount - zOrderIndex).toFloat()
-                },
-            ),
-    ) {
-        OutlinedCard(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationY = when {
-                        isDragging -> dragOffsetY()
-                        isSettling -> settlingOffsetY()
-                        else -> 0f
-                    }
-                    scaleX = when {
-                        isDragging -> 1f
-                        presentation.showExpandedLayout -> 1f
-                        else -> 0.992f
-                    } * pressedScale
-                    scaleY = when {
-                        isDragging -> 1f
-                        presentation.showExpandedLayout -> 1f
-                        else -> 0.992f
-                    } * pressedScale
-                    shadowElevation = when {
-                        isDragging -> 0f
-                        selected -> ReorderSelectedShadow
-                        else -> ReorderCollapsedShadow
-                    }
-                    shape = cardShape
-                    clip = true
-                },
-            shape = cardShape,
-            border = BorderStroke(
-                if (isDragging) 2.dp else 1.dp,
-                if (isDragging) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.90f)
-                } else {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-                },
-            ),
-            colors = CardDefaults.outlinedCardColors(
-                containerColor = cardContainerColor,
-            ),
-        ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    drawRect(
-                        color = palette.accent,
-                        size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height),
-                    )
-                }
-                .padding(
-                    horizontal = presentation.horizontalPadding,
-                    vertical = presentation.verticalPadding,
-                ),
-        ) {
-            if (presentation.showExpandedLayout) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(3.dp),
-                        ) {
-                            Text(
-                                text = snapshot.profileName.ifBlank { backendLabel(snapshot.backendType) },
-                                style = serverNameTextStyle,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = backendLabel(snapshot.backendType),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            WalletCardStatusLabel(label = stateLabel, live = isLive)
-                            WalletCardSpeedLine(
-                                uploadSpeed = snapshot.transferInfo.uploadSpeed,
-                                downloadSpeed = snapshot.transferInfo.downloadSpeed,
-                            )
-                        }
-                    }
-                    
-                    WalletCardMetricLine(
-                        label = stringResource(R.string.sort_total_uploaded),
-                        value = formatBytes(snapshot.transferInfo.uploadedTotal),
-                    )
-                    WalletCardMetricLine(
-                        label = stringResource(R.string.sort_total_downloaded),
-                        value = formatBytes(snapshot.transferInfo.downloadedTotal),
-                    )
-                    WalletCardMetricLine(
-                        label = stringResource(R.string.upload_limit_kb_label),
-                        value = uploadLimitText,
-                    )
-                    WalletCardMetricLine(
-                        label = stringResource(R.string.download_limit_kb_label),
-                        value = downloadLimitText,
-                    )
-                    WalletCardMetricLine(
-                        label = stringResource(R.string.free_space_label),
-                        value = formatBytes(snapshot.transferInfo.freeSpaceOnDisk),
-                    )
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        text = snapshot.profileName.ifBlank { backendLabel(snapshot.backendType) },
-                        style = serverNameTextStyle,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        WalletCardStatusLabel(label = stateLabel, live = isLive)
-                        WalletCardSpeedLine(
-                            uploadSpeed = snapshot.transferInfo.uploadSpeed,
-                            downloadSpeed = snapshot.transferInfo.downloadSpeed,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-}
-
-@Composable
-private fun WalletCardMetricLine(
-    label: String,
-    value: String,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = QbNumberStyles.small,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.End,
-        )
-    }
-}
-
-@Composable
-private fun WalletCardStatusLabel(
-    label: String,
-    live: Boolean,
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .background(
-                    color = if (live) QbTransferColors.Upload else MaterialTheme.colorScheme.outline,
-                    shape = CircleShape,
-                ),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
-private fun WalletCardSpeedLine(
-    uploadSpeed: Long,
-    downloadSpeed: Long,
-) {
-    val idle = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "↑ " + formatSpeed(uploadSpeed),
-            style = QbNumberStyles.small,
-            color = if (uploadSpeed > 0L) QbTransferColors.Upload else idle,
-            maxLines = 1,
-        )
-        Text(
-            text = "↓ " + formatSpeed(downloadSpeed),
-            style = QbNumberStyles.small,
-            color = if (downloadSpeed > 0L) QbTransferColors.Download else idle,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
-internal fun DashboardManagementEmptyCard(
-    onOpenManager: () -> Unit,
-) {
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = PanelShape,
-        border = BorderStroke(1.dp, qbGlassOutlineColor()),
-        colors = qbGlassCardColors(),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(R.string.dashboard_all_cards_hidden_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.dashboard_all_cards_hidden_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            TextButton(onClick = onOpenManager) {
-                Text(stringResource(R.string.dashboard_manage_cards_action))
-            }
-        }
-    }
-}
-
-@Composable
-internal fun PageRestorePlaceholder() {
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, qbGlassOutlineColor(defaultAlpha = 0.28f)),
-        colors = qbGlassCardColors(),
-    ) {
-        Text(
-            text = stringResource(R.string.loading),
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 20.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
-@Composable
-internal fun ServerDashboardSkeleton() {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        ServerDashboardSkeletonCard(
-            titleWidthFraction = 0.34f,
-            bodyHeight = 132.dp,
-        )
-        ServerDashboardSkeletonCard(
-            titleWidthFraction = 0.42f,
-            bodyHeight = 182.dp,
-        )
-        ServerDashboardSkeletonCard(
-            titleWidthFraction = 0.28f,
-            bodyHeight = 168.dp,
-        )
-    }
-}
-
-@Composable
-private fun ServerDashboardSkeletonCard(
-    titleWidthFraction: Float,
-    bodyHeight: Dp,
-) {
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = PanelShape,
-        border = BorderStroke(1.dp, qbGlassOutlineColor()),
-        colors = qbGlassCardColors(),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 13.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(titleWidthFraction)
-                    .height(16.dp)
-                    .background(
-                        color = qbGlassSubtleContainerColor(),
-                        shape = RoundedCornerShape(999.dp),
-                    ),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(bodyHeight)
-                    .background(
-                        color = qbGlassStrongContainerColor(),
-                        shape = RoundedCornerShape(18.dp),
-                    ),
-            )
-        }
-    }
-}
-
 @Composable
 internal fun ServerDashboardCardManagerSheet(
     availableCards: List<DashboardChartCard>,
@@ -1409,29 +638,8 @@ internal fun ServerDashboardCardManagerSheet(
     }
 }
 
-private data class WalletCardPalette(
-    val accent: Color,
-)
-
-// Muted accents: the card itself stays a neutral tone, the server identity is a
-// thin stripe on the leading edge.
-private val WalletCardAccents = listOf(
-    Color(0xFF5FD3C7),
-    Color(0xFF5B9BF5),
-    Color(0xFFE0A458),
-    Color(0xFFA78BFA),
-    Color(0xFFE58FA8),
-    Color(0xFF4CC38A),
-)
-
-private fun walletCardPalette(
-    stackedIndex: Int,
-): WalletCardPalette {
-    return WalletCardPalette(accent = WalletCardAccents[stackedIndex % WalletCardAccents.size])
-}
-
 @Composable
-private fun backendLabel(backendType: ServerBackendType): String {
+internal fun backendLabel(backendType: ServerBackendType): String {
     return when (backendType) {
         ServerBackendType.QBITTORRENT -> stringResource(R.string.backend_qbittorrent)
         ServerBackendType.TRANSMISSION -> stringResource(R.string.backend_transmission)
@@ -1468,7 +676,6 @@ private fun ServerOverviewActionButton(
         )
     }
 }
-
 
 @Composable
 private fun ServerProfileSummaryCard(
@@ -1798,116 +1005,11 @@ private fun DashboardStatusPill(
     }
 }
 
-/** One-time explanation shown under the turtle chip the first time it appears. */
-@Composable
-private fun AltSpeedHintCard(onDismiss: () -> Unit) {
-    val accent = MaterialTheme.colorScheme.primary
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(accent.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
-            .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_turtle),
-            contentDescription = null,
-            tint = accent,
-            modifier = Modifier.size(22.dp),
-        )
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.alt_speed_hint_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = stringResource(R.string.alt_speed_hint_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        TextButton(onClick = onDismiss) {
-            Text(
-                text = stringResource(R.string.alt_speed_hint_dismiss),
-                color = accent,
-            )
-        }
-    }
-}
-
-private enum class AltSpeedState { OFF, PARTIAL, ON }
-
-/**
- * Turtle chip for the alternative speed limits. Off: a quiet icon; on / partly on:
- * an accent-tinted pill with a label, so the slowed-down state is easy to notice.
- */
-@Composable
-private fun AltSpeedToggle(
-    state: AltSpeedState,
-    busy: Boolean,
-    onClick: () -> Unit,
-) {
-    val active = state != AltSpeedState.OFF
-    val accent = MaterialTheme.colorScheme.primary
-    val contentColor = if (active) accent else MaterialTheme.colorScheme.onSurfaceVariant
-    val description = stringResource(
-        if (state == AltSpeedState.ON) R.string.alt_speed_toggle_desc_on else R.string.alt_speed_toggle_desc_off,
-    )
-    Row(
-        modifier = Modifier
-            .height(32.dp)
-            .clip(CircleShape)
-            .background(if (active) accent.copy(alpha = 0.14f) else Color.Transparent)
-            .clickable(enabled = !busy, role = Role.Switch, onClickLabel = description, onClick = onClick)
-            .semantics { contentDescription = description }
-            .padding(horizontal = if (active) 10.dp else 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        if (busy) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-                color = contentColor,
-            )
-        } else {
-            Icon(
-                painter = painterResource(R.drawable.ic_turtle),
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        if (active) {
-            Text(
-                text = stringResource(
-                    if (state == AltSpeedState.ON) R.string.alt_speed_toggle_on else R.string.alt_speed_toggle_partial,
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = contentColor,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-private fun formatRateLimit(value: Long, unlimitedLabel: String): String {
+internal fun formatRateLimit(value: Long, unlimitedLabel: String): String {
     return if (value <= 0L) {
         unlimitedLabel
     } else {
         formatSpeed(value)
     }
 }
-
-
-
-
-
-
 

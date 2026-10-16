@@ -44,8 +44,6 @@ internal fun Preferences.toSettings(securePassword: String): ConnectionSettings 
         completionNotificationsEnabled = this[Keys.CompletionNotificationsEnabled] ?: false,
         homeTorrentEntryHintDismissed = this[Keys.HomeTorrentEntryHintDismissed] ?: false,
         hasSeenAltSpeedHint = this[Keys.HasSeenAltSpeedHint] ?: false,
-        hasSeenDashboardHideHint = this[Keys.HasSeenDashboardHideHint] ?: false,
-        hasSeenDashboardHiddenSnack = this[Keys.HasSeenDashboardHiddenSnack] ?: false,
         hasSeenServerStackReorderHint = this[Keys.HasSeenServerStackReorderHint] ?: false,
         hasSeenServerDashboardSwipeHint = this[Keys.HasSeenServerDashboardSwipeHint] ?: false,
         hasSeenServerDashboardCardHint = this[Keys.HasSeenServerDashboardCardHint] ?: false,

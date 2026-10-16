@@ -32,13 +32,13 @@ class UiPreferenceSupportTest {
     @Test
     fun `disjoint patches merge into their union`() {
         val base = UiPreferencePatch(appLanguage = AppLanguage.ZH_CN)
-        val next = UiPreferencePatch(appTheme = AppTheme.CUSTOM, hasSeenDashboardHideHint = true)
+        val next = UiPreferencePatch(appTheme = AppTheme.CUSTOM, hasSeenServerStackReorderHint = true)
 
         assertEquals(
             UiPreferencePatch(
                 appLanguage = AppLanguage.ZH_CN,
                 appTheme = AppTheme.CUSTOM,
-                hasSeenDashboardHideHint = true,
+                hasSeenServerStackReorderHint = true,
             ),
             mergeUiPreferencePatches(base, next),
         )
@@ -81,8 +81,6 @@ class UiPreferenceSupportTest {
                 deleteFilesWhenNoSeeders = true,
                 completionNotificationsEnabled = true,
                 homeTorrentEntryHintDismissed = true,
-                hasSeenDashboardHideHint = true,
-                hasSeenDashboardHiddenSnack = true,
                 hasSeenServerStackReorderHint = true,
                 hasSeenServerDashboardSwipeHint = true,
                 hasSeenServerDashboardCardHint = true,
@@ -94,6 +92,6 @@ class UiPreferenceSupportTest {
         assertEquals("root", target[Keys.Username])
         assertEquals("[]", target[Keys.ServerProfilesJson])
         assertEquals("p1", target[Keys.ActiveServerProfileId])
-        assertEquals(18, target.asMap().size)
+        assertEquals(16, target.asMap().size)
     }
 }

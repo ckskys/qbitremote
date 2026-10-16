@@ -1203,7 +1203,7 @@ class QbRepository : TorrentBackend {
         }
 
         if (merged.tags.isBlank() && !previous?.tags.isNullOrBlank()) {
-            merged = merged.copy(tags = previous?.tags.orEmpty())
+            merged = merged.copy(tags = previous.tags)
         }
 
         return merged

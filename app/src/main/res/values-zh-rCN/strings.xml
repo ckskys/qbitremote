@@ -106,7 +106,6 @@
     <string name="no_tags">无标签</string>
     <string name="no_category">未分类</string>
     <string name="no_torrent_data">暂无种子数据</string>
-    <string name="site_unknown">未知</string>
 
     <string name="pause">暂停</string>
     <string name="resume">继续</string>
@@ -130,21 +129,7 @@
     <string name="detail_tracker_copied">已复制 Tracker 链接</string>
     <string name="detail_export_success">种子已导出</string>
     <string name="detail_export_failed">种子导出失败</string>
-    <string name="torrent_size_fmt">种子大小：%1$s</string>
-    <string name="torrent_uploaded_downloaded_fmt">上传量：%1$s ｜ 下载量：%2$s</string>
-    <string name="torrent_speed_fmt">上传速度：%1$s ｜ 下载速度：%2$s</string>
-    <string name="torrent_category_fmt">分类：%1$s</string>
-    <string name="torrent_save_path_fmt">保存路径：%1$s</string>
-    <string name="torrent_ratio_fmt">分享率：%1$s</string>
     <string name="torrent_cross_seed_chip_fmt">辅种%1$d</string>
-    <string name="torrent_seed_count_fmt">🌱 种子数：%1$d（%2$d）</string>
-    <string name="torrent_peer_count_fmt">👤 用户数：%1$d（%2$d）</string>
-    <string name="added_fmt">添加时间：%1$s</string>
-    <string name="last_activity_fmt">最近活动：%1$s</string>
-    <string name="cross_seed_detail_title">辅种明细</string>
-    <string name="cross_seed_detail_source_fmt">当前种子：%1$s</string>
-    <string name="cross_seed_detail_count_fmt">同组种子：%1$d</string>
-    <string name="cross_seed_detail_site_fmt">站点：%1$s</string>
 
     <string name="menu_open_drawer">打开菜单</string>
     <string name="menu_manage_servers">服务器管理</string>
@@ -338,7 +323,9 @@
     <string name="server_test_connection">测试连接</string>
     <string name="server_test_running">正在测试连接…</string>
     <string name="server_test_success_fmt">连接成功，服务器版本 %1$s</string>
-    <string name="detail_peers_connected_fmt">已连接 %1$d 个用户</string>
+    <plurals name="detail_peers_connected_fmt">
+        <item quantity="other">已连接 %1$d 个用户</item>
+    </plurals>
     <string name="detail_peers_empty">当前没有连接的用户</string>
     <string name="file_priority_skip">不下载</string>
     <string name="file_priority_normal">正常</string>
@@ -361,4 +348,8 @@
     <string name="alt_speed_hint_title">这是备用限速开关</string>
     <string name="alt_speed_hint_body">点一下即可切换常规限速 / 备用限速，两组数值在「限速设置」里修改。</string>
     <string name="alt_speed_hint_dismiss">知道了</string>
+    <string name="torrent_list_empty_search">没有匹配搜索的种子</string>
+    <string name="torrent_list_empty_filter">没有符合筛选条件的种子</string>
+    <string name="torrent_list_empty_search_filter">没有符合搜索和筛选条件的种子</string>
+    <string name="torrent_list_clear_filters">清除筛选</string>
 </resources>

@@ -23,8 +23,6 @@ data class ConnectionSettings(
     val completionNotificationsEnabled: Boolean = false,
     val homeTorrentEntryHintDismissed: Boolean = false,
     val hasSeenAltSpeedHint: Boolean = false,
-    val hasSeenDashboardHideHint: Boolean = false,
-    val hasSeenDashboardHiddenSnack: Boolean = false,
     val hasSeenServerStackReorderHint: Boolean = false,
     val hasSeenServerDashboardSwipeHint: Boolean = false,
     val hasSeenServerDashboardCardHint: Boolean = false,
@@ -158,10 +156,6 @@ data class DashboardCacheSnapshot(
     val dailyTagUploadStats: List<CachedDailyTagUploadStat> = emptyList(),
     val dailyCountryUploadDate: String = "",
     val dailyCountryUploadStats: List<CountryPeerCountRecord> = emptyList(),
-)
-
-data class DashboardServerSnapshotStore(
-    val snapshots: Map<String, CachedDashboardServerSnapshot> = emptyMap(),
 )
 
 data class CachedDailyTagUploadStat(

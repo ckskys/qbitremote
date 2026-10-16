@@ -1,8 +1,6 @@
 package com.hjw.qbremote.ui
 
-import com.hjw.qbremote.data.ConnectionSettings
 import com.hjw.qbremote.data.ServerBackendType
-import com.hjw.qbremote.data.defaultCapabilitiesFor
 import com.hjw.qbremote.data.model.CountryUploadRecord
 import com.hjw.qbremote.data.model.TorrentFileInfo
 import com.hjw.qbremote.data.model.TorrentInfo
@@ -16,53 +14,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MainViewModelStateSupportTest {
-
-    @Test
-    fun applyServerSwitchReset_clearsSessionStateAndAppliesNewIdentity() {
-        val settings = ConnectionSettings(host = "next.example.com", port = 9091)
-        val capabilities = defaultCapabilitiesFor(ServerBackendType.TRANSMISSION)
-
-        val result = applyServerSwitchReset(
-            current = dirtyState(),
-            settings = settings,
-            activeProfileId = "alpha",
-            capabilities = capabilities,
-        )
-
-        assertEquals(settings, result.settings)
-        assertEquals("alpha", result.activeServerProfileId)
-        assertEquals(capabilities, result.activeCapabilities)
-        assertFalse(result.connected)
-        assertEquals("-", result.serverVersion)
-        assertEquals(TransferInfo(), result.transferInfo)
-        assertTrue(result.torrents.isEmpty())
-        assertEquals("", result.dailyTagUploadDate)
-        assertTrue(result.dailyTagUploadStats.isEmpty())
-        assertEquals("", result.dailyCountryUploadDate)
-        assertTrue(result.dailyCountryUploadStats.isEmpty())
-        assertEquals("alpha", result.selectedDashboardProfileId)
-        assertFalse(result.dashboardCacheHydrated)
-        assertFalse(result.hasDashboardSnapshot)
-        assertEquals("", result.detailHash)
-        assertFalse(result.detailLoading)
-        assertNull(result.detailProperties)
-        assertTrue(result.detailFiles.isEmpty())
-        assertTrue(result.detailTrackers.isEmpty())
-        assertTrue(result.pendingActionKeys.isEmpty())
-    }
-
-    @Test
-    fun applyServerSwitchReset_keepsPreviousDashboardSelectionWhenProfileIdMissing() {
-        val result = applyServerSwitchReset(
-            current = MainUiState(selectedDashboardProfileId = "beta"),
-            settings = ConnectionSettings(),
-            activeProfileId = null,
-            capabilities = defaultCapabilitiesFor(ServerBackendType.QBITTORRENT),
-        )
-
-        assertNull(result.activeServerProfileId)
-        assertEquals("beta", result.selectedDashboardProfileId)
-    }
 
     @Test
     fun prepareServerDashboardTransitionState_targetsProfileAndResetsSession() {

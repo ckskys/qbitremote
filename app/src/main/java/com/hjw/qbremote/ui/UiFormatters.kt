@@ -1,10 +1,8 @@
 ﻿package com.hjw.qbremote.ui
 
 import com.hjw.qbremote.data.model.CountryUploadRecord
-import java.text.SimpleDateFormat
 import java.net.URI
 import java.net.URLEncoder
-import java.util.Date
 import java.util.Locale
 
 fun formatBytes(value: Long): String {
@@ -29,12 +27,6 @@ fun formatPercent(progress: Float): String {
 fun formatRatio(value: Double): String {
     if (!value.isFinite() || value < 0.0) return "-"
     return String.format(Locale.US, "%.2f", value)
-}
-
-fun formatAddedOn(seconds: Long): String {
-    if (seconds <= 0L) return "-"
-    val date = Date(seconds * 1000L)
-    return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(date)
 }
 
 fun formatActiveAgo(lastActivitySeconds: Long, nowMillis: Long = System.currentTimeMillis()): String {
@@ -90,7 +82,7 @@ fun localizedCountryNameForDisplay(
         return if (locale.language.startsWith("zh")) "中国" else "China"
     }
     val localized = runCatching {
-        Locale("", normalizedCode).getDisplayCountry(locale).trim()
+        Locale.Builder().setRegion(normalizedCode).build().getDisplayCountry(locale).trim()
     }.getOrDefault("")
     return when {
         localized.isNotBlank() && !localized.equals(normalizedCode, ignoreCase = true) -> localized

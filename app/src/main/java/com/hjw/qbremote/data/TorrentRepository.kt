@@ -2,9 +2,6 @@ package com.hjw.qbremote.data
 
 import kotlinx.coroutines.withTimeoutOrNull
 import com.hjw.qbremote.data.model.AddTorrentRequest
-import com.hjw.qbremote.data.model.CountryPeerSnapshot
-import com.hjw.qbremote.data.model.DashboardData
-import com.hjw.qbremote.data.model.TorrentDetailData
 import com.hjw.qbremote.data.model.TorrentTracker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -37,12 +34,6 @@ class TorrentRepository {
         val selectedId = selectedProfileId
         val selectedBackend = selectedId?.let { sessions[it]?.backend }
         return selectedBackend?.capabilities ?: defaultCapabilitiesFor(ServerBackendType.QBITTORRENT)
-    }
-
-    fun capabilitiesForProfile(profileId: String): ServerCapabilities {
-        return sessions[profileId]?.backend?.capabilities
-            ?: sessions[profileId]?.settings?.let(::capabilitiesFor)
-            ?: defaultCapabilitiesFor(ServerBackendType.QBITTORRENT)
     }
 
     fun isConnected(profileId: String): Boolean {

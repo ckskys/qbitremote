@@ -8,12 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalWindowInfo
 import com.hjw.qbremote.data.AppTheme
 import kotlin.math.roundToInt
 
@@ -27,16 +24,10 @@ internal fun MainScreenBackdrop(
     customBackgroundImagePath: String,
     customBackgroundToneIsLight: Boolean,
 ) {
-    val configuration = LocalConfiguration.current
-    val density = LocalDensity.current
-    val backgroundTargetSizePx = remember(
-        configuration.screenWidthDp,
-        configuration.screenHeightDp,
-        density,
-    ) {
-        val widthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
-        val heightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }
-        (maxOf(widthPx, heightPx) * 1.18f).roundToInt().coerceAtLeast(1)
+    // Window size in px (LocalConfiguration's screen*Dp excludes insets and lags on resize).
+    val containerSize = LocalWindowInfo.current.containerSize
+    val backgroundTargetSizePx = remember(containerSize) {
+        (maxOf(containerSize.width, containerSize.height) * 1.18f).roundToInt().coerceAtLeast(1)
     }
     val effectiveAppTheme = resolveEffectiveAppTheme(
         appTheme = appTheme,
@@ -59,7 +50,7 @@ internal fun MainScreenBackdrop(
         Color.Black.copy(alpha = 0.18f)
     }
     if (showCustomBackgroundImage) {
-        customBackgroundImage?.let { image ->
+        customBackgroundImage.let { image ->
             Image(
                 bitmap = image,
                 contentDescription = null,

@@ -146,7 +146,6 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
 
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material:material")
     implementation("androidx.compose.material3:material3")
     // Material icons are frozen at 1.7.8 and no longer managed by the Compose BOM.
     implementation("androidx.compose.material:material-icons-core:1.7.8")

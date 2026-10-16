@@ -13,14 +13,6 @@ internal sealed interface UiMessage {
         val text: String,
     ) : UiMessage
 
-    companion object {
-        fun resource(
-            @StringRes stringRes: Int,
-            vararg formatArgs: Any,
-        ): UiMessage {
-            return Resource(stringRes, formatArgs.toList())
-        }
-    }
 }
 
 internal fun UiMessage.resolve(context: Context): String {

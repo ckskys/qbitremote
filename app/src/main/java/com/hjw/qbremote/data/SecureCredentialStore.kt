@@ -1,5 +1,6 @@
 package com.hjw.qbremote.data
 
+import androidx.core.content.edit
 import android.content.Context
 import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
@@ -26,7 +27,7 @@ class SecureCredentialStore(context: Context) {
     }
 
     fun savePassword(password: String) {
-        prefs.edit().putString(KEY_PASSWORD, encryptValue(password)).apply()
+        prefs.edit { putString(KEY_PASSWORD, encryptValue(password)) }
     }
 
     fun getPassword(): String {
@@ -34,12 +35,12 @@ class SecureCredentialStore(context: Context) {
     }
 
     fun clearPassword() {
-        prefs.edit().remove(KEY_PASSWORD).apply()
+        prefs.edit { remove(KEY_PASSWORD) }
     }
 
     fun savePasswordForProfile(profileId: String, password: String) {
         if (profileId.isBlank()) return
-        prefs.edit().putString(profilePasswordKey(profileId), encryptValue(password)).apply()
+        prefs.edit { putString(profilePasswordKey(profileId), encryptValue(password)) }
     }
 
     fun getPasswordForProfile(profileId: String): String {
@@ -49,7 +50,7 @@ class SecureCredentialStore(context: Context) {
 
     fun removePasswordForProfile(profileId: String) {
         if (profileId.isBlank()) return
-        prefs.edit().remove(profilePasswordKey(profileId)).apply()
+        prefs.edit { remove(profilePasswordKey(profileId)) }
     }
 
     private fun profilePasswordKey(profileId: String): String {

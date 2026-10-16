@@ -5,7 +5,6 @@ import com.google.gson.reflect.TypeToken
 
 internal val connectionStoreGson = Gson()
 
-private val serverProfileListType = object : TypeToken<List<ServerProfile>>() {}.type
 private val dailyUploadTrackingMapType =
     object : TypeToken<Map<String, DailyUploadTrackingSnapshot>>() {}.type
 private val dailyCountryUploadTrackingMapType =

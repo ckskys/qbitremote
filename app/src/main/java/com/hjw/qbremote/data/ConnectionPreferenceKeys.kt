@@ -22,8 +22,6 @@ internal object ConnectionPreferenceKeys {
     val CompletionNotificationStatesJson = stringPreferencesKey("completion_notification_states_json")
     val HomeTorrentEntryHintDismissed = booleanPreferencesKey("home_torrent_entry_hint_dismissed")
     val HasSeenAltSpeedHint = booleanPreferencesKey("has_seen_alt_speed_hint")
-    val HasSeenDashboardHideHint = booleanPreferencesKey("has_seen_dashboard_hide_hint")
-    val HasSeenDashboardHiddenSnack = booleanPreferencesKey("has_seen_dashboard_hidden_snack")
     val HasSeenServerStackReorderHint = booleanPreferencesKey("has_seen_server_stack_reorder_hint")
     val HasSeenServerDashboardSwipeHint = booleanPreferencesKey("has_seen_server_dashboard_swipe_hint")
     val HasSeenServerDashboardCardHint = booleanPreferencesKey("has_seen_server_dashboard_card_hint")

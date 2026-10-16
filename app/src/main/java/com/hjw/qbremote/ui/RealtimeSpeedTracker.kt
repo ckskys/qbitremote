@@ -113,12 +113,6 @@ internal class RealtimeSpeedTracker(
         mutex.withLock { block() }
     }
 
-    suspend fun <T> withLockReturning(block: suspend () -> T): T {
-        return mutex.withLock { block() }
-    }
-
-    fun currentScopeKey(): String? = scopeKey
-
     private suspend fun persistLocked(key: String, pointsSnapshot: List<RealtimeSpeedPoint>) {
         connectionStore.saveHomeAggregateSpeedHistorySnapshot(
             scopeKey = key,

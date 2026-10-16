@@ -3,7 +3,6 @@ package com.hjw.qbremote.ui
 import com.hjw.qbremote.data.CachedDashboardServerSnapshot
 import com.hjw.qbremote.data.ConnectionSettings
 import com.hjw.qbremote.data.HomeAggregateSpeedHistorySnapshot
-import com.hjw.qbremote.data.HomeSpeedHistoryPoint
 import com.hjw.qbremote.data.ServerCapabilities
 import com.hjw.qbremote.data.ServerDashboardPreferences
 import com.hjw.qbremote.data.ServerProfile
@@ -147,12 +146,19 @@ internal fun restoreHomeRealtimeSpeedSeriesForScope(
     snapshot: HomeAggregateSpeedHistorySnapshot?,
     scopeKey: String,
     maxPoints: Int,
+    nowMillis: Long = System.currentTimeMillis(),
+    maxAgeMillis: Long = HOME_REALTIME_SPEED_RESTORE_MAX_AGE_MS,
 ): List<RealtimeSpeedPoint> {
     if (snapshot == null) return emptyList()
     val normalizedScopeKey = scopeKey.trim()
     if (normalizedScopeKey.isBlank() || snapshot.scopeKey != normalizedScopeKey) return emptyList()
-    return restoreHomeRealtimeSpeedSeries(snapshot, maxPoints)
+    // The chart holds ~3 minutes of samples; points from an earlier session (e.g.
+    // yesterday) would stretch its time axis to "-23h" and draw stale speeds.
+    val oldestKept = nowMillis - maxAgeMillis
+    return restoreHomeRealtimeSpeedSeries(snapshot, maxPoints).filter { it.timestamp >= oldestKept }
 }
+
+internal const val HOME_REALTIME_SPEED_RESTORE_MAX_AGE_MS = 10 * 60 * 1000L
 
 internal fun resolveHomeSpeedRefreshIntervalSeconds(scene: RefreshScene): Int? {
     return if (scene == RefreshScene.DASHBOARD) 3 else null
@@ -183,36 +189,6 @@ internal fun applyHomeChartRefreshToAggregate(
     return aggregate.copy(
         chartTransferInfo = chartTransferInfo,
         realtimeSpeedSeries = chartSeries,
-    )
-}
-
-internal fun applyServerSwitchReset(
-    current: MainUiState,
-    settings: ConnectionSettings,
-    activeProfileId: String?,
-    capabilities: ServerCapabilities,
-): MainUiState {
-    return current.copy(
-        settings = settings,
-        activeServerProfileId = activeProfileId,
-        activeCapabilities = capabilities,
-        connected = false,
-        serverVersion = "-",
-        transferInfo = TransferInfo(),
-        torrents = emptyList(),
-        dailyTagUploadDate = "",
-        dailyTagUploadStats = emptyList(),
-        dailyCountryUploadDate = "",
-        dailyCountryUploadStats = emptyList(),
-        selectedDashboardProfileId = activeProfileId ?: current.selectedDashboardProfileId,
-        dashboardCacheHydrated = false,
-        hasDashboardSnapshot = false,
-        detailHash = "",
-        detailLoading = false,
-        detailProperties = null,
-        detailFiles = emptyList(),
-        detailTrackers = emptyList(),
-        pendingActionKeys = emptySet(),
     )
 }
 

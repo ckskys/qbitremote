@@ -50,5 +50,26 @@ class HomeRealtimeSpeedScopeSupportTest {
 
         assertTrue(restored.isEmpty())
     }
-}
 
+    @Test
+    fun restoreHomeRealtimeSpeedSeriesForScope_dropsPointsFromAnEarlierSession() {
+        val now = 1_000_000_000L
+        val snapshot = HomeAggregateSpeedHistorySnapshot(
+            scopeKey = "profiles:a",
+            points = listOf(
+                HomeSpeedHistoryPoint(timestamp = now - 23 * 3_600_000L, uploadSpeed = 9L, downloadSpeed = 9L, onlineServerCount = 1),
+                HomeSpeedHistoryPoint(timestamp = now - 60_000L, uploadSpeed = 1L, downloadSpeed = 2L, onlineServerCount = 1),
+                HomeSpeedHistoryPoint(timestamp = now - 3_000L, uploadSpeed = 3L, downloadSpeed = 4L, onlineServerCount = 1),
+            ),
+        )
+
+        val restored = restoreHomeRealtimeSpeedSeriesForScope(
+            snapshot = snapshot,
+            scopeKey = "profiles:a",
+            maxPoints = 60,
+            nowMillis = now,
+        )
+
+        assertEquals(listOf(now - 60_000L, now - 3_000L), restored.map { it.timestamp })
+    }
+}

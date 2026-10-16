@@ -574,15 +574,6 @@ class ConnectionStore(internal val context: Context) {
         }
     }
 
-    suspend fun removeDashboardServerSnapshot(profileId: String) {
-        if (profileId.isBlank()) return
-        context.dataStore.edit { target ->
-            val snapshots = parseDashboardServerSnapshots(target[Keys.DashboardServerSnapshotsJson]).toMutableMap()
-            snapshots.remove(profileId)
-            target[Keys.DashboardServerSnapshotsJson] = gson.toJson(snapshots)
-        }
-    }
-
     suspend fun loadSettingsForProfile(profileId: String): ConnectionSettings? {
         if (profileId.isBlank()) return null
         val pref = context.dataStore.data.first()

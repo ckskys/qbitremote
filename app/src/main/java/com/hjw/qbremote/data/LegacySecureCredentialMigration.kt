@@ -2,6 +2,7 @@
 
 package com.hjw.qbremote.data
 
+import androidx.core.content.edit
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -42,7 +43,7 @@ internal fun migrateLegacyPrefs(
     val legacyPrefs = legacyPrefsProvider()
 
     if (legacyPrefs == null) {
-        targetPrefs.edit().putBoolean(KEY_LEGACY_MIGRATED, true).apply()
+        targetPrefs.edit { putBoolean(KEY_LEGACY_MIGRATED, true) }
         return
     }
 
@@ -51,14 +52,14 @@ internal fun migrateLegacyPrefs(
             (value as? String)?.let { key to it }
         }
 
-    val editor = targetPrefs.edit()
-    legacyValues.forEach { (key, value) ->
-        editor.putString(key, encryptor(value))
+    // One transaction: the migrated values and the done flag land together.
+    targetPrefs.edit {
+        legacyValues.forEach { (key, value) -> putString(key, encryptor(value)) }
+        putBoolean(KEY_LEGACY_MIGRATED, true)
     }
-    editor.putBoolean(KEY_LEGACY_MIGRATED, true).apply()
 
     if (legacyValues.isNotEmpty()) {
-        legacyPrefs.edit().clear().apply()
+        legacyPrefs.edit { clear() }
     }
 }
 
