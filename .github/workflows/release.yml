@@ -58,11 +58,17 @@ jobs:
       # Signed binaries are still produced only on the owner's machine via
       # scripts/build-release-aab.ps1; the draft release carries the checksum
       # manifest and the owner attaches the signed APK/AAB from dist\ manually.
+      # If the owner already published the release for this tag, leave it alone:
+      # `gh release create` would add a second, draft release under the same tag.
+      # The unsigned checksums stay available in the workflow artifact above.
       - name: Create draft GitHub Release with checksums
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" --draft --generate-notes \
-            staging/SHA256SUMS-v${GITHUB_REF_NAME#v}-unsigned.txt || \
-          gh release upload "${GITHUB_REF_NAME}" staging/SHA256SUMS-v${GITHUB_REF_NAME#v}-unsigned.txt --clobber
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already published; not creating a draft."
+          else
+            gh release create "${GITHUB_REF_NAME}" --draft --generate-notes \
+              staging/SHA256SUMS-v${GITHUB_REF_NAME#v}-unsigned.txt
+          fi
