@@ -8,9 +8,14 @@ import androidx.work.Constraints
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.hjw.qbremote.data.ConnectionSettings
 import com.hjw.qbremote.data.ConnectionStore
 import com.hjw.qbremote.data.TorrentRepository
+import com.hjw.qbremote.data.model.TorrentInfo
+import com.hjw.qbremote.ui.advanceDailyUploadTrackingSnapshot
+import com.hjw.qbremote.ui.buildDailyUploadTrackingScopeKey
 import kotlinx.coroutines.flow.first
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
 class CompletionNotificationWorker(
@@ -41,11 +46,34 @@ class CompletionNotificationWorker(
                     }
                     states = mergeCompletionStates(profile.id, states, torrents)
                     store.saveCompletionNotificationStatesForProfile(profile.id, states)
+                    recordDailyUpload(store, profile.id, profileSettings, torrents)
                 },
                 onFailure = { hadTransientFailure = true },
             )
         }
         return if (hadTransientFailure) Result.retry() else Result.success()
+    }
+
+    /**
+     * Same list, one more use: advance the daily upload counters so they keep running
+     * while the app is closed. Lifetime counters make this exact whenever it runs; the
+     * app and this worker each write a consistent (totals, baselines) pair, so whichever
+     * write lands last, nothing is counted twice.
+     */
+    private suspend fun recordDailyUpload(
+        store: ConnectionStore,
+        profileId: String,
+        settings: ConnectionSettings,
+        torrents: List<TorrentInfo>,
+    ) {
+        val scopeKey = buildDailyUploadTrackingScopeKey(profileId, settings)
+        val (snapshot, _) = advanceDailyUploadTrackingSnapshot(
+            previousSnapshot = store.loadDailyUploadTrackingSnapshot(scopeKey),
+            today = LocalDate.now(),
+            torrents = torrents,
+            nowMillis = System.currentTimeMillis(),
+        )
+        store.saveDailyUploadTrackingSnapshot(scopeKey, snapshot)
     }
 
     companion object {

@@ -1,6 +1,7 @@
 package com.hjw.qbremote.data
 
 import kotlinx.coroutines.withTimeoutOrNull
+import com.hjw.qbremote.data.model.CountryPeerSample
 import com.hjw.qbremote.data.model.AddTorrentRequest
 import com.hjw.qbremote.data.model.TorrentTracker
 import kotlinx.coroutines.CancellationException
@@ -211,8 +212,8 @@ class TorrentRepository {
     suspend fun fetchCategoryOptions(profileId: String) = withBackend(profileId) { fetchCategoryOptions() }
     suspend fun fetchTagOptions(profileId: String) = withBackend(profileId) { fetchTagOptions() }
 
-    suspend fun fetchCountryPeerSnapshots(hashes: List<String>) = withBackend { fetchCountryPeerSnapshots(hashes) }
-    suspend fun fetchCountryPeerSnapshots(profileId: String, hashes: List<String>) =
+    suspend fun fetchCountryPeerSnapshots(hashes: List<String>): Result<CountryPeerSample> = withBackend { fetchCountryPeerSnapshots(hashes) }
+    suspend fun fetchCountryPeerSnapshots(profileId: String, hashes: List<String>): Result<CountryPeerSample> =
         withBackend(profileId) { fetchCountryPeerSnapshots(hashes) }
 
     suspend fun renameTorrent(hash: String, name: String) = withBackend { renameTorrent(hash, name) }

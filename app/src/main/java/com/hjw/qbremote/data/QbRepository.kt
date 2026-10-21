@@ -4,6 +4,7 @@ import com.hjw.qbremote.data.model.FilePriority
 import com.hjw.qbremote.data.model.TorrentPeer
 import com.hjw.qbremote.data.model.DashboardData
 import com.hjw.qbremote.data.model.AddTorrentRequest
+import com.hjw.qbremote.data.model.CountryPeerSample
 import com.hjw.qbremote.data.model.CountryPeerSnapshot
 import com.hjw.qbremote.data.model.TorrentDetailData
 import com.hjw.qbremote.data.model.TorrentInfo
@@ -313,7 +314,7 @@ class QbRepository : TorrentBackend {
         parseTagOptions(raw)
     }
 
-    override suspend fun fetchCountryPeerSnapshots(hashes: List<String>): Result<List<CountryPeerSnapshot>> = runCatching {
+    override suspend fun fetchCountryPeerSnapshots(hashes: List<String>): Result<CountryPeerSample> = runCatching {
         // qB has no batch peers endpoint, so this is one request per torrent. Bound
         // the fan-out instead of going strictly serial, and don't retry: country
         // stats are best-effort and the next refresh samples again.
@@ -330,19 +331,27 @@ class QbRepository : TorrentBackend {
                                 val raw = executeWithRetry(maxAttempts = 1) { liveApi ->
                                     liveApi.torrentPeers(hash = hash)
                                 }
-                                parseCountryPeerSnapshots(hash = hash, raw = raw)
+                                hash to parseCountryPeerSnapshots(hash = hash, raw = raw)
                             } catch (error: CancellationException) {
                                 throw error
                             } catch (error: Exception) {
                                 // One torrent's peers failing must not drop the
                                 // whole sample for every other torrent.
-                                emptyList()
+                                null
                             }
                         }
                     }
                 }
                 .awaitAll()
-                .flatten()
+                .filterNotNull()
+                .let { results ->
+                    CountryPeerSample(
+                        peers = results.flatMap { it.second.orEmpty() },
+                        // A reply that didn't parse is not a sample: its peers would
+                        // later look newly connected and be counted in full.
+                        sampledHashes = results.filter { it.second != null }.map { it.first }.toSet(),
+                    )
+                }
         }
     }
 
@@ -1015,12 +1024,10 @@ class QbRepository : TorrentBackend {
     private fun parseCountryPeerSnapshots(
         hash: String,
         raw: String,
-    ): List<CountryPeerSnapshot> {
-        val peersObject = runCatching {
-            JsonParser.parseString(raw)
-                .asJsonObject
-                .getAsJsonObject("peers")
-        }.getOrNull() ?: return emptyList()
+    ): List<CountryPeerSnapshot>? {
+        val root = runCatching { JsonParser.parseString(raw).asJsonObject }.getOrNull() ?: return null
+        // No "peers" object in a valid reply just means nobody is connected.
+        val peersObject = runCatching { root.getAsJsonObject("peers") }.getOrNull() ?: return emptyList()
 
         return peersObject.entrySet().mapNotNull { (peerId, value) ->
             val peer = value.asJsonObjectOrNull() ?: return@mapNotNull null
@@ -1037,6 +1044,7 @@ class QbRepository : TorrentBackend {
                 countryCode = countryCode,
                 countryName = peer.readString("country_name", "countryName", "country"),
                 uploadedBytes = uploadedBytes.coerceAtLeast(0L),
+                torrentHash = hash,
             )
         }
     }

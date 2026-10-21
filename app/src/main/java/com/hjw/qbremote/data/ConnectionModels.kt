@@ -128,6 +128,8 @@ data class DailyUploadTrackingSnapshot(
     val totalsByTag: Map<String, Long> = emptyMap(),
     val countedTagsByTorrent: Map<String, List<String>> = emptyMap(),
     val lastSeenByTorrent: Map<String, Long> = emptyMap(),
+    /** When [lastSeenByTorrent] was sampled; lets the next day's first sample split the gap at midnight. */
+    val lastSampleAtMillis: Long = 0L,
 )
 
 data class DailyCountryUploadTrackingSnapshot(
@@ -135,6 +137,8 @@ data class DailyCountryUploadTrackingSnapshot(
     val totalsByCountry: Map<String, Long> = emptyMap(),
     val peerSnapshots: Map<String, CountryPeerSnapshot> = emptyMap(),
     val lastSeenByTorrent: Map<String, Long> = emptyMap(),
+    /** Torrents whose full peer list was read in the last sample. */
+    val sampledTorrentHashes: List<String> = emptyList(),
 )
 
 data class HomeSpeedHistoryPoint(

@@ -24,14 +24,14 @@ internal fun DailyUploadTrackingSnapshot.normalized(): DailyUploadTrackingSnapsh
             .mapKeys { it.key.trim() }
             .filterKeys { it.isNotBlank() }
             .mapValues { (_, value) -> value.coerceAtLeast(0L) },
-        countedTagsByTorrent = if (countedTagsByTorrent.size > 500) emptyMap() else countedTagsByTorrent
+        countedTagsByTorrent = if (countedTagsByTorrent.size > MAX_TRACKED_TORRENTS) emptyMap() else countedTagsByTorrent
             .filterKeys { it.isNotBlank() }
             .mapValues { (_, tags) ->
                 tags.map { it.trim() }
                     .filter { it.isNotBlank() }
                     .distinctBy { it.lowercase() }
             },
-        lastSeenByTorrent = if (lastSeenByTorrent.size > 500) emptyMap() else lastSeenByTorrent
+        lastSeenByTorrent = if (lastSeenByTorrent.size > MAX_TRACKED_TORRENTS) emptyMap() else lastSeenByTorrent
             .filterKeys { it.isNotBlank() }
             .mapValues { (_, value) -> value.coerceAtLeast(0L) },
     )
@@ -44,7 +44,7 @@ internal fun DailyCountryUploadTrackingSnapshot.normalized(): DailyCountryUpload
             .mapKeys { it.key.trim().uppercase() }
             .filterKeys { it.isNotBlank() }
             .mapValues { (_, value) -> value.coerceAtLeast(0L) },
-        peerSnapshots = if (peerSnapshots.size > 1000) emptyMap() else peerSnapshots
+        peerSnapshots = if (peerSnapshots.size > MAX_TRACKED_PEERS) emptyMap() else peerSnapshots
             .filterKeys { it.isNotBlank() }
             .mapValues { (_, snapshot) ->
                 snapshot.copy(
@@ -53,9 +53,10 @@ internal fun DailyCountryUploadTrackingSnapshot.normalized(): DailyCountryUpload
                     countryCode = snapshot.countryCode.trim().uppercase(),
                     countryName = snapshot.countryName.trim(),
                     uploadedBytes = snapshot.uploadedBytes.coerceAtLeast(0L),
+                    torrentHash = snapshot.torrentHash.trim(),
                 )
             },
-        lastSeenByTorrent = if (lastSeenByTorrent.size > 500) emptyMap() else lastSeenByTorrent
+        lastSeenByTorrent = if (lastSeenByTorrent.size > MAX_TRACKED_TORRENTS) emptyMap() else lastSeenByTorrent
             .filterKeys { it.isNotBlank() }
             .mapValues { (_, value) -> value.coerceAtLeast(0L) },
     )
@@ -164,3 +165,7 @@ internal fun defaultServerDashboardPreferences(settings: ConnectionSettings): Se
         cardOrder = visibleCards.joinToString(","),
     ).normalized()
 }
+
+// Upper bounds against corrupted state; real libraries reach a few thousand torrents.
+private const val MAX_TRACKED_TORRENTS = 20_000
+private const val MAX_TRACKED_PEERS = 20_000

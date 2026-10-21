@@ -363,11 +363,15 @@ class QbRepositoryRetryContractTest {
         val repository = QbRepository()
         repository.connect(testSettings()).getOrThrow()
 
-        val snapshots = repository.fetchCountryPeerSnapshots(listOf("good", "bad")).getOrThrow()
+        val sample = repository.fetchCountryPeerSnapshots(listOf("good", "bad")).getOrThrow()
+        val snapshots = sample.peers
 
         assertEquals(1, snapshots.size)
         assertEquals("JP", snapshots.single().countryCode)
         assertEquals(42L, snapshots.single().uploadedBytes)
+        assertEquals("good", snapshots.single().torrentHash)
+        // The failed torrent is not reported as sampled, so its peers are never mistaken for new ones.
+        assertEquals(setOf("good"), sample.sampledHashes)
     }
 
     @Test

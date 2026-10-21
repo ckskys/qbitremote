@@ -48,6 +48,7 @@ internal fun advanceDailyCountryUploadTrackingSnapshot(
     today: LocalDate,
     torrents: List<TorrentInfo>,
     samples: List<CountryPeerSnapshot>,
+    sampledHashes: Set<String> = emptySet(),
 ): Pair<DailyCountryUploadTrackingSnapshot, DailyCountryUploadStats> {
     val totalsByCountry = previous?.totalsByCountry?.toMutableMap() ?: mutableMapOf()
     val peerSnapshots = previous?.peerSnapshots?.toMutableMap() ?: mutableMapOf()
@@ -56,11 +57,16 @@ internal fun advanceDailyCountryUploadTrackingSnapshot(
         previous?.date?.takeIf { it.isNotBlank() }?.let(LocalDate::parse)
     }.getOrNull()
 
-    if (snapshotDate != today) {
+    val newDay = snapshotDate != today
+    if (newDay) {
         totalsByCountry.clear()
         peerSnapshots.clear()
         lastSeenByTorrent.clear()
     }
+    // A peer missing from the previous full list of the same torrent connected after
+    // that sample, so its whole per-connection counter is new upload. (Peers of a
+    // torrent seen for the first time may have been connected for hours: baseline only.)
+    val sampledLastTime = if (newDay) emptySet() else previous?.sampledTorrentHashes.orEmpty().toSet()
 
     val activeKeys = torrents.map(::dailyCountryTorrentTrackingKey).toSet()
     lastSeenByTorrent.keys.retainAll(activeKeys)
@@ -83,7 +89,15 @@ internal fun advanceDailyCountryUploadTrackingSnapshot(
         val previousUploaded = peerSnapshots[entry.key]?.uploadedBytes?.coerceAtLeast(0L)
         val currentUploaded = entry.uploadedBytes.coerceAtLeast(0L)
         val delta = when {
-            previousUploaded == null -> 0L
+            previousUploaded == null -> if (
+                entry.torrentHash.isNotBlank() &&
+                entry.torrentHash in sampledLastTime &&
+                entry.torrentHash in sampledHashes
+            ) {
+                currentUploaded
+            } else {
+                0L
+            }
             currentUploaded < previousUploaded -> currentUploaded
             else -> currentUploaded - previousUploaded
         }
@@ -99,6 +113,7 @@ internal fun advanceDailyCountryUploadTrackingSnapshot(
         totalsByCountry = totalsByCountry,
         peerSnapshots = peerSnapshots,
         lastSeenByTorrent = lastSeenByTorrent,
+        sampledTorrentHashes = sampledHashes.toList(),
     )
     val stats = DailyCountryUploadStats(
         dateLabel = today.toString(),

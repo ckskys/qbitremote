@@ -4,7 +4,7 @@ import com.hjw.qbremote.data.CachedDashboardServerSnapshot
 import com.hjw.qbremote.data.ConnectionStore
 import com.hjw.qbremote.data.DailyCountryUploadTrackingSnapshot
 import com.hjw.qbremote.data.DailyUploadTrackingSnapshot
-import com.hjw.qbremote.data.model.CountryPeerSnapshot
+import com.hjw.qbremote.data.model.CountryPeerSample
 import com.hjw.qbremote.data.model.TorrentInfo
 import java.time.LocalDate
 
@@ -90,6 +90,7 @@ internal class DashboardPersistence(
             previousSnapshot = previousSnapshot,
             today = today,
             torrents = torrents,
+            nowMillis = System.currentTimeMillis(),
         )
         if (dailyUploadTrackingPersistence.offer(scopeKey, updatedSnapshot)) {
             connectionStore.saveDailyUploadTrackingSnapshot(
@@ -103,14 +104,14 @@ internal class DashboardPersistence(
     suspend fun buildDashboardCountryUploadStatsForScope(
         scopeKey: String,
         torrents: List<TorrentInfo>,
-        fetchPeerSnapshots: suspend (List<String>) -> List<CountryPeerSnapshot>,
+        fetchPeerSnapshots: suspend (List<String>) -> CountryPeerSample,
     ): com.hjw.qbremote.data.model.DailyCountryUploadStats {
         val snapshot = dailyCountryTrackingPersistence.cached(scopeKey)
             ?: connectionStore.loadDailyCountryUploadTrackingSnapshot(scopeKey)?.also { loaded ->
                 dailyCountryTrackingPersistence.remember(scopeKey, loaded)
             }
         val today = LocalDate.now()
-        val samples = fetchPeerSnapshots(
+        val sample = fetchPeerSnapshots(
             resolveActiveCountryUploadHashes(
                 previous = snapshot,
                 today = today,
@@ -121,7 +122,8 @@ internal class DashboardPersistence(
             previous = snapshot,
             today = today,
             torrents = torrents,
-            samples = samples,
+            samples = sample.peers,
+            sampledHashes = sample.sampledHashes,
         )
         if (dailyCountryTrackingPersistence.offer(scopeKey, updatedSnapshot)) {
             connectionStore.saveDailyCountryUploadTrackingSnapshot(

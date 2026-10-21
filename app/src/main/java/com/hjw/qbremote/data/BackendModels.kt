@@ -1,6 +1,6 @@
 package com.hjw.qbremote.data
 
-import com.hjw.qbremote.data.model.CountryPeerSnapshot
+import com.hjw.qbremote.data.model.CountryPeerSample
 import com.hjw.qbremote.data.model.CountryUploadRecord
 import com.hjw.qbremote.data.model.DashboardData
 import com.hjw.qbremote.data.model.TorrentInfo
@@ -79,7 +79,7 @@ interface TorrentBackend {
     suspend fun exportTorrentFile(hash: String): Result<ByteArray>
     suspend fun fetchCategoryOptions(): Result<List<String>>
     suspend fun fetchTagOptions(): Result<List<String>>
-    suspend fun fetchCountryPeerSnapshots(hashes: List<String>): Result<List<CountryPeerSnapshot>>
+    suspend fun fetchCountryPeerSnapshots(hashes: List<String>): Result<CountryPeerSample>
     suspend fun renameTorrent(hash: String, name: String): Result<Unit>
     suspend fun setTorrentLocation(hash: String, location: String): Result<Unit>
     suspend fun setTorrentCategory(hash: String, category: String): Result<Unit>

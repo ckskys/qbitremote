@@ -9,6 +9,7 @@ import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 import com.google.gson.stream.JsonReader
 import com.hjw.qbremote.data.model.AddTorrentRequest
+import com.hjw.qbremote.data.model.CountryPeerSample
 import com.hjw.qbremote.data.model.CountryPeerSnapshot
 import com.hjw.qbremote.data.model.DashboardData
 import com.hjw.qbremote.data.model.TorrentDetailData
@@ -160,8 +161,8 @@ class TransmissionBackend : TorrentBackend {
             .sorted()
     }
 
-    override suspend fun fetchCountryPeerSnapshots(hashes: List<String>): Result<List<CountryPeerSnapshot>> =
-        Result.success(emptyList())
+    override suspend fun fetchCountryPeerSnapshots(hashes: List<String>): Result<CountryPeerSample> =
+        Result.success(CountryPeerSample())
 
     override suspend fun renameTorrent(hash: String, name: String): Result<Unit> = runCatching {
         require(hash.isNotBlank()) { "Invalid torrent hash." }

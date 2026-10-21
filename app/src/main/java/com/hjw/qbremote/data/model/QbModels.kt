@@ -65,6 +65,13 @@ data class CountryPeerSnapshot(
     val countryCode: String = "",
     val countryName: String = "",
     val uploadedBytes: Long = 0,
+    val torrentHash: String = "",
+)
+
+/** One round of peer lists: [sampledHashes] are the torrents whose list was read successfully. */
+data class CountryPeerSample(
+    val peers: List<CountryPeerSnapshot> = emptyList(),
+    val sampledHashes: Set<String> = emptySet(),
 )
 
 data class TorrentDetailData(

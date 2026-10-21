@@ -18,6 +18,7 @@ import com.hjw.qbremote.data.TorrentRepository
 import com.hjw.qbremote.data.UiPreferencePatch
 import com.hjw.qbremote.data.model.AddTorrentFile
 import com.hjw.qbremote.data.model.AddTorrentRequest
+import com.hjw.qbremote.data.model.CountryPeerSample
 import com.hjw.qbremote.data.model.DailyCountryUploadStats
 import com.hjw.qbremote.data.model.TorrentTracker
 import com.hjw.qbremote.data.model.TransferInfo
@@ -1461,7 +1462,7 @@ class MainViewModel(
                         torrents = dashboardData.torrents,
                         fetchPeerSnapshots = { hashes ->
                             repository.fetchCountryPeerSnapshots(profileId, hashes)
-                                .getOrElse { emptyList() }
+                                .getOrElse { CountryPeerSample() }
                         },
                     )
                 } else {
@@ -1852,12 +1853,12 @@ class MainViewModel(
                 fetchPeerSnapshots = { hashes ->
                     try {
                         repository.fetchCountryPeerSnapshots(input.profile.id, hashes)
-                            .getOrElse { emptyList() }
+                            .getOrElse { CountryPeerSample() }
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: IllegalStateException) {
                         // Session was cleared (profile removed / switched) mid-refresh.
-                        emptyList()
+                        CountryPeerSample()
                     }
                 },
             )
