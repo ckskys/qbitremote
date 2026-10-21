@@ -415,6 +415,14 @@ fun MainScreen(viewModel: MainViewModel) {
         openTorrentList()
     }
 
+    /** A status pill on the server card: show exactly the torrents it counted. */
+    fun openTorrentListWithStateFilter(stateFilter: TorrentStateFilter) {
+        viewModel.showTorrentListForStateFilter(stateFilter)
+        // The filter chips live in the search bar; open it so the active filter is visible.
+        if (stateFilter != TorrentStateFilter.ALL) showTorrentSearchBar = true
+        openTorrentListFromDashboard()
+    }
+
     fun openServerDashboard(profileId: String) {
         if (profileId.isBlank()) return
         if (currentPage != AppPage.SERVER_DASHBOARD) {
@@ -1083,6 +1091,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                 altSpeed = altSpeedControl,
                                 onDismissHomeTorrentEntryHint = viewModel::dismissHomeTorrentEntryHint,
                                 onOpenTorrentList = ::openTorrentListFromDashboard,
+                                onOpenFilteredTorrentList = ::openTorrentListWithStateFilter,
                                 onSwitchServerProfile = viewModel::switchServerProfile,
                                 onEditServerProfile = { profileId -> openServerProfileSheet(profileId) },
                                 onRequestDeleteServerProfile = ::requestDeleteServerProfile,
@@ -1130,6 +1139,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                     showDashboardCardManagerSheet = true
                                 },
                                 onOpenTorrentList = ::openTorrentListFromDashboard,
+                                onOpenFilteredTorrentList = ::openTorrentListWithStateFilter,
                                 onSwitchServerProfile = viewModel::switchServerProfile,
                                 onEditServerProfile = { profileId -> openServerProfileSheet(profileId) },
                                 onRequestDeleteServerProfile = ::requestDeleteServerProfile,

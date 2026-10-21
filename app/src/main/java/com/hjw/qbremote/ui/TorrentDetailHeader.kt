@@ -19,6 +19,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -122,36 +123,59 @@ internal fun TorrentDetailStatusHeader(
             )
         }
 
-        // Four key numbers in one quiet grid.
-        Row(
+        // Key numbers in one quiet grid: live speeds on top, totals underneath.
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(16.dp))
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            DetailStat(
-                label = stringResource(R.string.detail_stat_upload),
-                value = formatSpeed(torrent.uploadSpeed),
-                valueColor = if (torrent.uploadSpeed > 0L) QbTransferColors.Upload else null,
-                modifier = Modifier.weight(1f),
-            )
-            DetailStat(
-                label = stringResource(R.string.detail_stat_download),
-                value = formatSpeed(torrent.downloadSpeed),
-                valueColor = if (torrent.downloadSpeed > 0L) QbTransferColors.Download else null,
-                modifier = Modifier.weight(1f),
-            )
-            DetailStat(
-                label = stringResource(R.string.detail_peer_ratio_label),
-                value = formatRatio(torrent.ratio),
-                modifier = Modifier.weight(1f),
-            )
-            DetailStat(
-                label = stringResource(R.string.detail_stat_size),
-                value = formatBytes(torrent.size),
-                modifier = Modifier.weight(1f),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DetailStat(
+                    label = stringResource(R.string.detail_stat_upload),
+                    value = formatSpeed(torrent.uploadSpeed),
+                    valueColor = if (torrent.uploadSpeed > 0L) QbTransferColors.Upload else null,
+                    modifier = Modifier.weight(1f),
+                )
+                DetailStat(
+                    label = stringResource(R.string.detail_stat_download),
+                    value = formatSpeed(torrent.downloadSpeed),
+                    valueColor = if (torrent.downloadSpeed > 0L) QbTransferColors.Download else null,
+                    modifier = Modifier.weight(1f),
+                )
+                DetailStat(
+                    label = stringResource(R.string.detail_peer_ratio_label),
+                    value = formatRatio(torrent.ratio),
+                    modifier = Modifier.weight(1f),
+                )
+                DetailStat(
+                    label = stringResource(R.string.detail_stat_size),
+                    value = formatBytes(torrent.size),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Each total sits under its speed column.
+                DetailStat(
+                    label = stringResource(R.string.detail_stat_uploaded),
+                    value = formatBytes(torrent.uploaded),
+                    modifier = Modifier.weight(1f),
+                )
+                DetailStat(
+                    label = stringResource(R.string.detail_stat_downloaded),
+                    value = formatBytes(torrent.downloaded),
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.weight(1f))
+            }
         }
 
         Row(

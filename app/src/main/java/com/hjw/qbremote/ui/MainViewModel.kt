@@ -250,6 +250,13 @@ class MainViewModel(
         }
     }
 
+    /** Only [stateFilter] applies, so the list matches the tapped pill's count. */
+    internal fun showTorrentListForStateFilter(stateFilter: TorrentStateFilter) {
+        torrentListFilterState.update { current ->
+            clearTorrentListFilters(current).copy(query = "", stateFilter = stateFilter)
+        }
+    }
+
     internal fun updateTorrentListStateFilter(stateFilter: TorrentStateFilter) {
         torrentListFilterState.update { current ->
             if (current.stateFilter == stateFilter) current else current.copy(stateFilter = stateFilter)

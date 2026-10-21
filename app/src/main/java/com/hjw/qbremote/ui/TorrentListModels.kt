@@ -18,14 +18,25 @@ internal enum class TorrentListSortOption {
     CROSS_SEED_COUNT,
 }
 
-internal enum class TorrentStateFilter(val labelKey: Int) {
+internal enum class TorrentStateFilter(
+    val labelKey: Int,
+    /** Group of the matching server-card pill, if this filter is one of those groups. */
+    val dashboardBucket: DashboardStateBucket? = null,
+    /**
+     * Pill-only filters ("Uploading" overlaps "Seeding") stay out of the list's
+     * filter row unless they are the active one, i.e. reached from a pill.
+     */
+    val inFilterRow: Boolean = true,
+) {
     ALL(R.string.filter_state_all),
-    DOWNLOADING(R.string.filter_state_downloading),
+    DOWNLOADING(R.string.filter_state_downloading, DashboardStateBucket.DOWNLOADING),
+    UPLOADING(R.string.status_uploading, DashboardStateBucket.UPLOADING, inFilterRow = false),
     SEEDING(R.string.filter_state_seeding),
-    PAUSED(R.string.filter_state_paused),
+    PAUSED(R.string.filter_state_paused, DashboardStateBucket.PAUSED),
     COMPLETED(R.string.filter_state_completed),
-    CHECKING(R.string.filter_state_checking),
-    ERROR(R.string.filter_state_error),
+    CHECKING(R.string.filter_state_checking, DashboardStateBucket.CHECKING),
+    WAITING(R.string.status_waiting, DashboardStateBucket.WAITING, inFilterRow = false),
+    ERROR(R.string.filter_state_error, DashboardStateBucket.ERROR),
 }
 
 @Immutable
@@ -145,18 +156,14 @@ internal fun sortTorrentList(
 
 internal fun matchesStateFilter(torrent: TorrentInfo, filter: TorrentStateFilter): Boolean {
     if (filter == TorrentStateFilter.ALL) return true
-    val state = torrent.state.trim().lowercase()
-    val progress = torrent.progress
+    filter.dashboardBucket?.let { bucket -> return dashboardStateBucket(torrent) == bucket }
     return when (filter) {
-        TorrentStateFilter.DOWNLOADING -> state in setOf("downloading", "stalldl", "queueddl", "forceddl", "pauseddl")
-            || (state == "pauseddl" && progress < 1f)
-        TorrentStateFilter.SEEDING -> state in setOf("uploading", "stalledup", "queuedup", "forcedup", "pausedup")
-            || (state == "pausedup" && progress >= 1f)
-        TorrentStateFilter.PAUSED -> state in setOf("pauseddl", "pausedup")
-        TorrentStateFilter.COMPLETED -> progress >= 1f && state !in setOf("checking", "checkingup", "checkingdl", "moving", "error", "missingfiles")
-        TorrentStateFilter.CHECKING -> state in setOf("checking", "checkingup", "checkingdl", "moving")
-        TorrentStateFilter.ERROR -> state in setOf("error", "missingfiles", "unknown")
-        TorrentStateFilter.ALL -> true
+        TorrentStateFilter.SEEDING -> normalizeTorrentState(effectiveTorrentState(torrent)) in
+            setOf("uploading", "stalledup", "queuedup", "forcedup", "pausedup", "stoppedup")
+        // COMPLETED
+        else -> torrent.progress >= 1f && dashboardStateBucket(torrent).let {
+            it != DashboardStateBucket.CHECKING && it != DashboardStateBucket.ERROR
+        }
     }
 }
 

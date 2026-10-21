@@ -9,17 +9,46 @@ import com.hjw.qbremote.data.model.TorrentInfo
 internal data class DashboardStateSummary(
     val uploadingCount: Int = 0,
     val downloadingCount: Int = 0,
-    val pausedUploadCount: Int = 0,
-    val pausedDownloadCount: Int = 0,
+    val pausedCount: Int = 0,
     val errorCount: Int = 0,
     val checkingCount: Int = 0,
     val waitingCount: Int = 0,
 )
 
+/**
+ * The status groups shown as pills on the server card. The torrent list filters
+ * by the same groups ([matchesStateFilter]), so a pill's count always equals the
+ * number of torrents the list shows after tapping it.
+ */
+internal enum class DashboardStateBucket {
+    UPLOADING,
+    DOWNLOADING,
+    PAUSED,
+    ERROR,
+    CHECKING,
+    WAITING,
+}
+
+internal fun dashboardStateBucket(torrent: TorrentInfo): DashboardStateBucket? {
+    return when (normalizeTorrentState(effectiveTorrentState(torrent))) {
+        "uploading", "forcedup", "stalledup" -> DashboardStateBucket.UPLOADING
+        "downloading", "forceddl", "stalleddl", "metadl", "forcedmetadl", "allocating", "moving" ->
+            DashboardStateBucket.DOWNLOADING
+        "pausedup", "stoppedup", "pauseddl", "stoppeddl" -> DashboardStateBucket.PAUSED
+        "error", "missingfiles" -> DashboardStateBucket.ERROR
+        // "checkup" is what Transmission's verify states map to.
+        "checking", "checkingdl", "checkingup", "checkingresumedata", "checkup" -> DashboardStateBucket.CHECKING
+        "queueddl", "queuedup" -> DashboardStateBucket.WAITING
+        else -> null
+    }
+}
+
 internal data class DashboardStatusPillItem(
     val label: String,
     val count: Int,
     val accentColor: Color,
+    /** List filter opened by tapping the pill. */
+    val filter: TorrentStateFilter,
 )
 
 internal val HomeServerStackExpandedCardHeight = 210.dp
@@ -93,33 +122,16 @@ internal fun resolveWalletServerStackCardPresentation(
 internal fun buildDashboardStateSummary(torrents: List<TorrentInfo>): DashboardStateSummary {
     if (torrents.isEmpty()) return DashboardStateSummary()
 
-    var uploading = 0
-    var downloading = 0
-    var pausedUpload = 0
-    var pausedDownload = 0
-    var error = 0
-    var checking = 0
-    var waiting = 0
-
+    val counts = IntArray(DashboardStateBucket.entries.size)
     torrents.forEach { torrent ->
-        when (normalizeTorrentState(effectiveTorrentState(torrent))) {
-            "uploading", "forcedup", "stalledup" -> uploading++
-            "downloading", "forceddl", "stalleddl", "metadl", "forcedmetadl", "allocating", "moving" -> downloading++
-            "pausedup", "stoppedup" -> pausedUpload++
-            "pauseddl", "stoppeddl" -> pausedDownload++
-            "error", "missingfiles" -> error++
-            "checkingdl", "checkingup", "checkingresumedata" -> checking++
-            "queueddl", "queuedup" -> waiting++
-        }
+        dashboardStateBucket(torrent)?.let { counts[it.ordinal]++ }
     }
-
     return DashboardStateSummary(
-        uploadingCount = uploading,
-        downloadingCount = downloading,
-        pausedUploadCount = pausedUpload,
-        pausedDownloadCount = pausedDownload,
-        errorCount = error,
-        checkingCount = checking,
-        waitingCount = waiting,
+        uploadingCount = counts[DashboardStateBucket.UPLOADING.ordinal],
+        downloadingCount = counts[DashboardStateBucket.DOWNLOADING.ordinal],
+        pausedCount = counts[DashboardStateBucket.PAUSED.ordinal],
+        errorCount = counts[DashboardStateBucket.ERROR.ordinal],
+        checkingCount = counts[DashboardStateBucket.CHECKING.ordinal],
+        waitingCount = counts[DashboardStateBucket.WAITING.ordinal],
     )
 }

@@ -183,6 +183,7 @@ private fun FilterChipRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TorrentStateFilter.entries.forEach { stateFilter ->
+                if (!stateFilter.inFilterRow && filterState.stateFilter != stateFilter) return@forEach
                 FilterChip(
                     selected = filterState.stateFilter == stateFilter,
                     onClick = { onStateFilterChange(stateFilter) },

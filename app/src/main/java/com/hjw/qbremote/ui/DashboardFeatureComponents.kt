@@ -87,6 +87,7 @@ internal fun ServerOverviewCard(
     onCardClick: (() -> Unit)?,
     onDismissEntryHint: () -> Unit,
     onOpenTorrentList: () -> Unit,
+    onOpenFilteredTorrentList: (TorrentStateFilter) -> Unit,
     onSwitchServerProfile: (String) -> Unit,
     onEditServerProfile: (String) -> Unit,
     onRequestDeleteServerProfile: (String) -> Unit,
@@ -107,7 +108,6 @@ internal fun ServerOverviewCard(
         value = transferInfo.downloadRateLimit,
         unlimitedLabel = stringResource(R.string.limit_unlimited),
     )
-    val pausedTotal = stateSummary.pausedUploadCount + stateSummary.pausedDownloadCount
     val statusUploadingLabel = stringResource(R.string.status_uploading)
     val statusDownloadingLabel = stringResource(R.string.status_downloading)
     val statusPausedLabel = stringResource(R.string.status_paused)
@@ -131,36 +131,43 @@ internal fun ServerOverviewCard(
                 label = statusUploadingLabel,
                 count = stateSummary.uploadingCount,
                 accentColor = Color(0xFF3BBA6F),
+                filter = TorrentStateFilter.UPLOADING,
             ),
             DashboardStatusPillItem(
                 label = statusDownloadingLabel,
                 count = stateSummary.downloadingCount,
                 accentColor = Color(0xFF3990FF),
+                filter = TorrentStateFilter.DOWNLOADING,
             ),
             DashboardStatusPillItem(
                 label = statusPausedLabel,
-                count = pausedTotal,
+                count = stateSummary.pausedCount,
                 accentColor = Color(0xFF8D98A8),
+                filter = TorrentStateFilter.PAUSED,
             ),
             DashboardStatusPillItem(
                 label = statusErrorLabel,
                 count = stateSummary.errorCount,
                 accentColor = Color(0xFFE1493D),
+                filter = TorrentStateFilter.ERROR,
             ),
             DashboardStatusPillItem(
                 label = statusCheckingLabel,
                 count = stateSummary.checkingCount,
                 accentColor = Color(0xFFE1A22B),
+                filter = TorrentStateFilter.CHECKING,
             ),
             DashboardStatusPillItem(
                 label = statusWaitingLabel,
                 count = stateSummary.waitingCount,
                 accentColor = Color(0xFFA674E8),
+                filter = TorrentStateFilter.WAITING,
             ),
             DashboardStatusPillItem(
                 label = statusTotalLabel,
                 count = torrentCount,
                 accentColor = Color(0xFF11A9B5),
+                filter = TorrentStateFilter.ALL,
             ),
         )
     }
@@ -397,6 +404,7 @@ internal fun ServerOverviewCard(
                                 label = pill.label,
                                 count = pill.count,
                                 accentColor = pill.accentColor,
+                                onClick = { onOpenFilteredTorrentList(pill.filter) },
                             )
                         }
                     }
@@ -968,13 +976,13 @@ private fun DashboardStatusPill(
     label: String,
     count: Int,
     accentColor: Color,
+    onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .background(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(999.dp),
-            )
+            .clip(RoundedCornerShape(999.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         Row(

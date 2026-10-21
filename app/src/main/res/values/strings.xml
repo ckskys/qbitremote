@@ -336,6 +336,8 @@
     <string name="detail_stat_upload">上传</string>
     <string name="detail_stat_download">下载</string>
     <string name="detail_stat_size">大小</string>
+    <string name="detail_stat_uploaded">已上传</string>
+    <string name="detail_stat_downloaded">已下载</string>
     <string name="global_speed_limit_mode_title">当前生效的限速</string>
     <string name="global_speed_limit_mode_option_normal">常规限速</string>
     <string name="global_speed_limit_mode_option_alternative">备用限速</string>
