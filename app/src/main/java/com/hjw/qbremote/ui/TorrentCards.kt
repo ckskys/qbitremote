@@ -28,6 +28,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Upload
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -89,6 +93,8 @@ internal fun TorrentCard(
         if (crossSeedCount > 0) add(stringResource(R.string.torrent_cross_seed_chip_fmt, crossSeedCount))
     }.joinToString("  ·  ")
     val separatorColor = MaterialTheme.colorScheme.outline
+    val faintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    val hasTotals = torrent.uploaded > 0L || torrent.downloaded > 0L
     val idleSpeedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
 
     val cardShape = RoundedCornerShape(12.dp)
@@ -114,7 +120,8 @@ internal fun TorrentCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            // 4dp text-line rhythm; the progress bar adds its own extra gap.
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -156,15 +163,6 @@ internal fun TorrentCard(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (filingText.isNotEmpty()) {
-                        Text(
-                            text = filingText,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
@@ -181,6 +179,30 @@ internal fun TorrentCard(
                     )
                 }
             }
+            // Faint third line: filing on the left, lifetime totals under the speeds.
+            if (filingText.isNotEmpty() || hasTotals) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = filingText,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = faintColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (hasTotals) {
+                        TorrentTransferTotals(
+                            uploaded = torrent.uploaded,
+                            downloaded = torrent.downloaded,
+                            color = faintColor,
+                        )
+                    }
+                }
+            }
 
             // Progress only matters until the torrent is complete.
             if (!complete) {
@@ -192,6 +214,7 @@ internal fun TorrentCard(
                 LinearProgressIndicator(
                     progress = { animatedProgress },
                     modifier = Modifier
+                        .padding(top = 4.dp)
                         .fillMaxWidth()
                         .height(3.dp),
                     color = stateStyle.progressColor,
@@ -560,3 +583,31 @@ internal fun ratioLimitInputText(ratioLimit: Double?): String {
     }
 }
 
+/**
+ * Lifetime uploaded / downloaded, icon-only labels: the arrow-onto-a-bar glyphs read
+ * as "amount moved", distinct from the plain speed arrows above them.
+ */
+@Composable
+private fun TorrentTransferTotals(uploaded: Long, downloaded: Long, color: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Upload,
+            contentDescription = stringResource(R.string.detail_stat_uploaded),
+            modifier = Modifier.size(12.dp),
+            tint = color,
+        )
+        Text(text = formatBytes(uploaded), style = QbNumberStyles.small, color = color, maxLines = 1)
+        Icon(
+            imageVector = Icons.Rounded.Download,
+            contentDescription = stringResource(R.string.detail_stat_downloaded),
+            modifier = Modifier
+                .padding(start = 6.dp)
+                .size(12.dp),
+            tint = color,
+        )
+        Text(text = formatBytes(downloaded), style = QbNumberStyles.small, color = color, maxLines = 1)
+    }
+}
