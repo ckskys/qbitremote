@@ -81,7 +81,7 @@ internal fun TorrentCard(
     val noTags = stringResource(R.string.no_tags)
     val categoryText = normalizeCategoryLabel(category = torrent.category, noCategoryText = noCategory)
     val tagsText = compactTagsLabel(tags = torrent.tags, noTagsText = noTags)
-    // Second line: state · size · ETA while downloading, ratio otherwise.
+    // Second line: state · ETA while downloading, ratio otherwise.
     val statusText = if (complete) stateLabel else "$stateLabel ${(torrent.progress * 100).toInt()}%"
     val tailText = formatEta(torrent.eta).takeIf { !complete }
         ?.let { stringResource(R.string.torrent_row_eta_fmt, it) }
@@ -152,10 +152,9 @@ internal fun TorrentCard(
                         Text(
                             text = buildAnnotatedString {
                                 append(statusText)
-                                listOf(formatBytes(torrent.size), tailText).forEach { part ->
-                                    withStyle(SpanStyle(color = separatorColor)) { append("  ·  ") }
-                                    append(part)
-                                }
+                                // Size is left out: the downloaded total on the third line covers it.
+                                withStyle(SpanStyle(color = separatorColor)) { append("  ·  ") }
+                                append(tailText)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
