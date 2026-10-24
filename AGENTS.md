@@ -44,6 +44,21 @@
   explicitly asks. This app must keep using the current fixed signing identity
   so Google Play updates continue to work.
 
+## Git Push Policy (owner's requirement)
+
+- Pushes MUST be performed from the LOCAL Windows machine. Never build a remote
+  push path through the NAS (192.168.5.90) container, a `git bundle`/`git am`
+  workaround, or a third-party proxy — that produces a different commit hash for
+  the same tree and silently diverges local `main` from `origin/main`.
+- The local machine reaches GitHub directly; `git ls-remote` / `git push` work
+  without a proxy. Credentials are provided by Git Credential Manager
+  (`credential.helper=helper-selector`, selected `manager`).
+- If the network fails (push hangs, times out, or returns an auth/transport
+  error), STOP and report it to the owner — do not invent a fallback route.
+- After any push whose hash did not originate locally, verify identity with
+  `git rev-parse HEAD^{tree}` vs `git rev-parse origin/<branch>^{tree}` and
+  realign with `git reset --soft origin/<branch>` only when the trees match.
+
 ## Hard Rules
 
 - R8/minification stays ON for release. If a release build misbehaves, fix the
