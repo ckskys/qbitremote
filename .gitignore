@@ -26,6 +26,10 @@ keystore.properties
 .cowork-temp/
 .gradle-user/
 .claude/
+.agent-teams/
+
+# Reference screenshots and scratch files
+tmp/
 
 # Local offline toolchain cache (do not commit)
 tools/

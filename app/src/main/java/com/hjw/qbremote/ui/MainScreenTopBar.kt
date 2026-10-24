@@ -9,17 +9,22 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.DashboardCustomize
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -31,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -38,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hjw.qbremote.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +69,10 @@ internal fun MainScreenTopBar(
     onSortDirectionSelected: (Boolean) -> Unit,
     onToggleSearchBar: () -> Unit,
     onOpenAddTorrent: () -> Unit,
+    // Filter panel entry; [filterActiveCount] > 0 turns the icon into an active state
+    // with a count badge.
+    onOpenFilterSheet: () -> Unit = {},
+    filterActiveCount: Int = 0,
     // Server name inside a server's pages; null shows the app name.
     title: String? = null,
 ) {
@@ -71,6 +82,7 @@ internal fun MainScreenTopBar(
     val sortDescription = stringResource(R.string.menu_sort)
     val searchDescription = stringResource(R.string.menu_search)
     val addTorrentDescription = stringResource(R.string.menu_add_torrent)
+    val filterDescription = stringResource(R.string.menu_filter)
     val compactTorrentTopBar = currentPage == AppPage.TORRENT_LIST
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -192,6 +204,11 @@ internal fun MainScreenTopBar(
                         },
                         onClick = onToggleSearchBar,
                     )
+                    FilterTopBarAction(
+                        activeCount = filterActiveCount,
+                        description = filterDescription,
+                        onClick = onOpenFilterSheet,
+                    )
                     Box {
                         TopBarIconAction(
                             icon = Icons.AutoMirrored.Outlined.Sort,
@@ -259,6 +276,46 @@ private fun TopBarIconAction(
             contentDescription = description,
             tint = MaterialTheme.colorScheme.onBackground,
         )
+    }
+}
+
+/**
+ * Filter-panel entry: the funnel icon in the bar's normal colour, switching to the theme's
+ * primary colour with a count badge once at least one section restricts the list.
+ */
+@Composable
+private fun FilterTopBarAction(
+    activeCount: Int,
+    description: String,
+    onClick: () -> Unit,
+) {
+    val active = activeCount > 0
+    val tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+    Box {
+        IconButton(onClick = onClick) {
+            Icon(
+                imageVector = Icons.Outlined.FilterList,
+                contentDescription = description,
+                tint = tint,
+            )
+        }
+        if (active) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 6.dp, end = 4.dp)
+                    .size(16.dp)
+                    .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (activeCount > 9) "9+" else activeCount.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        }
     }
 }
 

@@ -48,7 +48,7 @@ TorrentRemote 是一款原生 Android 应用（Kotlin + Jetpack Compose），用
 
 ### 种子管理
 - 右滑暂停/继续、左滑删除；长按进入多选批量操作；下拉刷新
-- 按状态、分类、标签筛选，支持搜索与 11 种排序
+- 按状态、分类、标签、Tracker 服务器筛选：筛选面板是分组清单式多选，每项都带实时候选计数，组内可多选；列表上方有可逐条移除的已选条件摘要。另支持搜索与 11 种排序
 - 详情页分信息、Tracker、用户、文件四个页签：已连接用户列表、单文件下载优先级、重命名、移动、导出、重新汇报、重新校验
 - Tracker 编辑/删除（passkey 自动隐藏）、辅种识别、单种限速与分享率限制
 - 通过磁力链接、URL 或 `.torrent` 文件添加种子，也可从其他应用直接分享链接进来
@@ -90,6 +90,8 @@ TorrentRemote 是一款原生 Android 应用（Kotlin + Jetpack Compose），用
 ```
 
 只需要 JDK 17 与 Android SDK（`ANDROID_HOME`）。CI 会在每次推送时运行单元测试、Lint、调试构建与未签名发布构建。签名发布包通过 `scripts/build-release-aab.ps1` 构建，需要本地密钥库（见 [AGENTS.md](AGENTS.md)）。
+
+如果本机没有安装 JDK 17 / Android SDK，也可以用 Docker 复用一台已有 Android SDK 的机器来构建，见 [docs/docker-build-env.zh-CN.md](docs/docker-build-env.zh-CN.md)。
 
 ## 作者
 

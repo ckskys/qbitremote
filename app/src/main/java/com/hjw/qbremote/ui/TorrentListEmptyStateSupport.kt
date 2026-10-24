@@ -16,9 +16,7 @@ internal fun resolveTorrentListEmptyState(
     if (!hasTorrents) return TorrentListEmptyState.NO_TORRENTS
     if (visibleCount > 0) return TorrentListEmptyState.NONE
     val hasQuery = filterState.query.trim().isNotBlank()
-    val hasFilters = filterState.stateFilter != TorrentStateFilter.ALL ||
-        filterState.categoryFilter.isNotBlank() ||
-        filterState.tagFilter.isNotBlank()
+    val hasFilters = hasActiveTorrentListFilters(filterState)
     return when {
         hasQuery && hasFilters -> TorrentListEmptyState.SEARCH_FILTER_NO_RESULTS
         hasQuery -> TorrentListEmptyState.SEARCH_NO_RESULTS
@@ -27,10 +25,12 @@ internal fun resolveTorrentListEmptyState(
     }
 }
 
+/** Drops every section's selection; the search query and the sort order stay. */
 internal fun clearTorrentListFilters(current: TorrentListFilterState): TorrentListFilterState {
     return current.copy(
-        stateFilter = TorrentStateFilter.ALL,
-        categoryFilter = "",
-        tagFilter = "",
+        stateFilters = emptySet(),
+        categoryFilters = emptySet(),
+        tagFilters = emptySet(),
+        trackerFilters = emptySet(),
     )
 }

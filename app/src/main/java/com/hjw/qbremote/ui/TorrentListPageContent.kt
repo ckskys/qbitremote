@@ -1,7 +1,9 @@
 package com.hjw.qbremote.ui
 
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -15,17 +17,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hjw.qbremote.R
 import com.hjw.qbremote.data.model.TorrentInfo
@@ -39,12 +42,8 @@ internal fun LazyListScope.torrentListPageContent(
     animatePlacement: Boolean,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    filterState: TorrentListFilterState,
-    onStateFilterChange: (TorrentStateFilter) -> Unit,
-    onCategoryFilterChange: (String) -> Unit,
-    onTagFilterChange: (String) -> Unit,
-    categoryOptions: List<String>,
-    tagOptions: List<String>,
+    filterChips: List<TorrentFilterChip>,
+    onRemoveFilter: (TorrentFilterGroup, String) -> Unit,
     visibleItems: List<VisibleTorrentItem>,
     emptyState: TorrentListEmptyState,
     onClearFilters: () -> Unit,
@@ -81,14 +80,13 @@ internal fun LazyListScope.torrentListPageContent(
                     singleLine = true,
                 )
             }
-            stickyHeader(key = "torrent_filter_chips") {
-                FilterChipRow(
-                    filterState = filterState,
-                    onStateFilterChange = onStateFilterChange,
-                    onCategoryFilterChange = onCategoryFilterChange,
-                    onTagFilterChange = onTagFilterChange,
-                    categoryOptions = categoryOptions,
-                    tagOptions = tagOptions,
+        }
+        if (!selection.active && filterChips.isNotEmpty()) {
+            stickyHeader(key = "torrent_filter_summary") {
+                TorrentFilterSummaryRow(
+                    chips = filterChips,
+                    onRemoveFilter = onRemoveFilter,
+                    onClearFilters = onClearFilters,
                 )
             }
         }
@@ -152,89 +150,97 @@ internal fun LazyListScope.torrentListPageContent(
     }
 }
 
+/**
+ * Number of leading sticky headers of the torrent list, i.e. the index of its first row.
+ * Scroll restoration and "scroll to first torrent" both need this to land on a torrent.
+ */
+internal fun torrentListHeaderCount(
+    selectionActive: Boolean,
+    showSearchBar: Boolean,
+    hasFilterSummary: Boolean,
+): Int = when {
+    selectionActive -> 1
+    showSearchBar && hasFilterSummary -> 2
+    showSearchBar || hasFilterSummary -> 1
+    else -> 0
+}
+
+/**
+ * The applied-filter summary: one removable chip per selected value plus a "clear all"
+ * action. Only rendered while at least one section restricts the list.
+ */
 @Composable
-private fun FilterChipRow(
-    filterState: TorrentListFilterState,
-    onStateFilterChange: (TorrentStateFilter) -> Unit,
-    onCategoryFilterChange: (String) -> Unit,
-    onTagFilterChange: (String) -> Unit,
-    categoryOptions: List<String>,
-    tagOptions: List<String>,
+private fun TorrentFilterSummaryRow(
+    chips: List<TorrentFilterChip>,
+    onRemoveFilter: (TorrentFilterGroup, String) -> Unit,
+    onClearFilters: () -> Unit,
 ) {
-    // Borderless pills: neutral when idle, inverted (light on dark) when selected.
-    val chipColors = FilterChipDefaults.filterChipColors(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        selectedContainerColor = MaterialTheme.colorScheme.onSurface,
-        selectedLabelColor = MaterialTheme.colorScheme.surface,
-    )
-    Column(
+    val summaryDescription = stringResource(R.string.torrent_filter_summary_label)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(vertical = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+            .horizontalScroll(rememberScrollState())
+            .padding(vertical = 4.dp)
+            .semantics { contentDescription = summaryDescription },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Row 1: State filters
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            TorrentStateFilter.entries.forEach { stateFilter ->
-                if (!stateFilter.inFilterRow && filterState.stateFilter != stateFilter) return@forEach
-                FilterChip(
-                    selected = filterState.stateFilter == stateFilter,
-                    onClick = { onStateFilterChange(stateFilter) },
-                    label = { Text(stringResource(stateFilter.labelKey)) },
-                    colors = chipColors,
-                    border = null,
-                    shape = CircleShape,
-                )
-            }
+        chips.forEach { chip ->
+            FilterSummaryChip(
+                label = chip.displayLabel(),
+                onRemove = { onRemoveFilter(chip.group, chip.key) },
+            )
         }
-        // Row 2: Category filters
-        if (categoryOptions.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                categoryOptions.forEach { category ->
-                    FilterChip(
-                        selected = filterState.categoryFilter == category,
-                        onClick = { onCategoryFilterChange(category) },
-                        label = { Text(category) },
-                        colors = chipColors,
-                        border = null,
-                        shape = CircleShape,
-                    )
-                }
-            }
-        }
-        // Row 3: Tag filters
-        if (tagOptions.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                tagOptions.forEach { tag ->
-                    FilterChip(
-                        selected = filterState.tagFilter == tag,
-                        onClick = { onTagFilterChange(tag) },
-                        label = { Text(tag) },
-                        colors = chipColors,
-                        border = null,
-                        shape = CircleShape,
-                    )
-                }
-            }
+        TextButton(onClick = onClearFilters) {
+            Text(stringResource(R.string.torrent_list_clear_filters))
         }
     }
+}
+
+@Composable
+private fun FilterSummaryChip(label: String, onRemove: () -> Unit) {
+    val primary = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = Modifier
+            .background(
+                color = primary.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(50),
+            )
+            // No vertical padding: the 48dp remove button is what sets the chip height, which
+            // keeps the row an even 48dp tall instead of 48dp + padding.
+            .padding(start = 12.dp, end = 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        IconButton(
+            onClick = onRemove,
+            // 48dp touch target (the accessibility floor the settings rows are held to as well);
+            // the glyph stays 18dp so the chip does not look heavy.
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = stringResource(R.string.torrent_filter_remove),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/** Resource labels win over raw text; a key with neither still renders its key. */
+@Composable
+private fun TorrentFilterChip.displayLabel(): String {
+    labelRes?.let { return stringResource(it) }
+    return label.ifBlank { key }
 }
 
 internal fun shouldAnimateTorrentPlacement(

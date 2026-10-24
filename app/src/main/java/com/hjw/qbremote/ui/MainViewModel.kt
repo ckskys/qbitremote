@@ -1,4 +1,4 @@
-﻿package com.hjw.qbremote.ui
+package com.hjw.qbremote.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -89,6 +89,22 @@ class MainViewModel(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = ServerDashboardDisplayState(),
         )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    internal val torrentListFilterPanelState: StateFlow<TorrentFilterPanelState> = combine(
+        _uiState.map { it.torrents }.distinctUntilChanged(),
+        torrentListFilterState,
+    ) { torrents, filterState ->
+        torrents to filterState
+    }.mapLatest { (torrents, filterState) ->
+        withContext(Dispatchers.Default) {
+            buildTorrentFilterPanelState(torrents = torrents, filterState = filterState)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = TorrentFilterPanelState(),
+    )
 
     private val backgroundJobManager = BackgroundJobManager(
         scope = viewModelScope,
@@ -254,31 +270,21 @@ class MainViewModel(
     /** Only [stateFilter] applies, so the list matches the tapped pill's count. */
     internal fun showTorrentListForStateFilter(stateFilter: TorrentStateFilter) {
         torrentListFilterState.update { current ->
-            clearTorrentListFilters(current).copy(query = "", stateFilter = stateFilter)
+            selectTorrentStateFilter(clearTorrentListFilters(current), stateFilter).copy(query = "")
         }
     }
 
-    internal fun updateTorrentListStateFilter(stateFilter: TorrentStateFilter) {
-        torrentListFilterState.update { current ->
-            if (current.stateFilter == stateFilter) current else current.copy(stateFilter = stateFilter)
-        }
+    /** Toggles one row of the multi-select filter panel; the change applies immediately. */
+    internal fun toggleTorrentListFilterOption(group: TorrentFilterGroup, key: String) {
+        torrentListFilterState.update { current -> toggleTorrentFilterOption(current, group, key) }
     }
 
-    internal fun updateTorrentListCategoryFilter(category: String) {
-        torrentListFilterState.update { current ->
-            val next = if (current.categoryFilter == category) "" else category
-            if (current.categoryFilter == next) current else current.copy(categoryFilter = next)
-        }
+    /** The panel's "全部" row: drops that section's selection only. */
+    internal fun clearTorrentListFilterGroup(group: TorrentFilterGroup) {
+        torrentListFilterState.update { current -> clearTorrentFilterGroup(current, group) }
     }
 
-    internal fun updateTorrentListTagFilter(tag: String) {
-        torrentListFilterState.update { current ->
-            val next = if (current.tagFilter == tag) "" else tag
-            if (current.tagFilter == next) current else current.copy(tagFilter = next)
-        }
-    }
-
-    /** Drops state/category/tag filters; the search query and sort order stay. */
+    /** Drops state/category/tag/tracker filters; the search query and sort order stay. */
     internal fun resetTorrentListFilters() {
         torrentListFilterState.update { current ->
             clearTorrentListFilters(current).takeIf { it != current } ?: current

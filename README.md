@@ -48,7 +48,7 @@ TorrentRemote is a native Android app (Kotlin + Jetpack Compose) for remote torr
 
 ### Torrents
 - Swipe right to pause or resume, swipe left to delete; long-press to multi-select and act on many at once; pull to refresh
-- Filter by state, category and tag, search, and 11 sort orders
+- Filter by state, category, tag and tracker site; the filter panel is a grouped checklist with live per-option counts, multi-select within a group, and a removable summary of active conditions above the list. Also search, and 11 sort orders
 - Details page with Info, Trackers, Peers and Files tabs: connected peer list, per-file download priority, rename, move, export, re-announce and recheck
 - Edit or remove trackers (passkeys are masked), cross-seed detection, per-torrent speed and share-ratio limits
 - Add torrents by magnet link, URL or `.torrent` file, or share a link into the app from anywhere
@@ -90,6 +90,8 @@ Prebuilt binaries are never committed to this repository. Please verify download
 ```
 
 Only JDK 17 and an Android SDK (`ANDROID_HOME`) are needed. CI runs unit tests, lint, a debug build and an unsigned release build on every push. Signed release bundles are built with `scripts/build-release-aab.ps1`, which needs a local keystore (see [AGENTS.md](AGENTS.md)).
+
+If the machine has no JDK 17 / Android SDK, the project can also be built inside Docker by reusing a host that already ships an Android SDK — see [docs/docker-build-env.zh-CN.md](docs/docker-build-env.zh-CN.md).
 
 ## Author
 

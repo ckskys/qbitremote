@@ -18,7 +18,12 @@ class DashboardStatePillFilterTest {
     }
 
     private fun listCount(filter: TorrentStateFilter) =
-        buildTorrentListDisplayState(torrents, TorrentListFilterState(stateFilter = filter)).visibleTorrentItems.size
+        buildTorrentListDisplayState(
+            torrents,
+            TorrentListFilterState(
+                stateFilters = if (filter == TorrentStateFilter.ALL) emptySet() else setOf(filter),
+            ),
+        ).visibleTorrentItems.size
 
     @Test
     fun pillCountsMatchTheFilteredList() {
@@ -39,5 +44,19 @@ class DashboardStatePillFilterTest {
         assertEquals(4, summary.checkingCount)
         // stalledDL used to be missed by the list's "Downloading" filter (typo "stalldl").
         assertEquals(6, summary.downloadingCount)
+    }
+
+    /** Selecting several states OR-s them, and the pill row's count is a subset of it. */
+    @Test
+    fun multipleSelectedStatesAreOredTogether() {
+        val summary = buildDashboardStateSummary(torrents)
+        val both = buildTorrentListDisplayState(
+            torrents,
+            TorrentListFilterState(
+                stateFilters = setOf(TorrentStateFilter.DOWNLOADING, TorrentStateFilter.ERROR),
+            ),
+        ).visibleTorrentItems.size
+
+        assertEquals(summary.downloadingCount + summary.errorCount, both)
     }
 }

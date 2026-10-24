@@ -161,6 +161,21 @@
     <string name="filter_state_completed">已完成</string>
     <string name="filter_state_checking">校验中</string>
     <string name="filter_state_error">错误</string>
+    <string name="torrent_filter_uncategorized">未分类</string>
+    <string name="torrent_filter_no_tracker">没有Tracker</string>
+    <string name="torrent_filter_no_tag">无标签</string>
+    <string name="torrent_filter_sheet_title">筛选</string>
+    <string name="torrent_filter_clear">清除</string>
+    <string name="torrent_filter_group_state">状态</string>
+    <string name="torrent_filter_group_category">分类</string>
+    <string name="torrent_filter_group_tag">标签</string>
+    <string name="torrent_filter_group_tracker">服务器</string>
+    <string name="torrent_filter_group_empty">暂无可选项</string>
+    <string name="torrent_filter_row_fmt">%1$s（%2$d）</string>
+    <string name="torrent_filter_summary_label">已选条件</string>
+    <string name="torrent_filter_remove">移除该筛选条件</string>
+    <string name="torrent_filter_visible_count_fmt">显示 %1$d 个</string>
+    <string name="menu_filter">筛选</string>
 
     <string name="add_torrent_title">添加种子</string>
     <string name="torrent_links_title">种子链接</string>

@@ -124,10 +124,12 @@ fun MainScreen(viewModel: MainViewModel) {
     var showDashboardCardManagerSheet by rememberSaveable { mutableStateOf(false) }
     var showTorrentSortMenu by remember { mutableStateOf(false) }
     var showTorrentSearchBar by rememberSaveable { mutableStateOf(false) }
+    var showTorrentFilterSheet by rememberSaveable { mutableStateOf(false) }
     var sortScrollRequestId by remember { mutableIntStateOf(0) }
     val addTorrentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val serverProfileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dashboardCardManagerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val torrentFilterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val localContext = LocalContext.current
     // Configuration-aware (follows in-app language changes), unlike localContext.getString.
     val localResources = LocalResources.current
@@ -166,6 +168,7 @@ fun MainScreen(viewModel: MainViewModel) {
         )
     }
     val torrentListDisplayState by viewModel.torrentListDisplayState.collectAsStateWithLifecycle()
+    val torrentListFilterPanelState by viewModel.torrentListFilterPanelState.collectAsStateWithLifecycle()
     val serverDashboardDisplay by viewModel.serverDashboardDisplayState.collectAsStateWithLifecycle()
     val torrentListFilterState = torrentListDisplayState.torrentListFilterState
     val torrentListBaseSnapshot = torrentListDisplayState.torrentListBaseSnapshot
@@ -418,8 +421,8 @@ fun MainScreen(viewModel: MainViewModel) {
     /** A status pill on the server card: show exactly the torrents it counted. */
     fun openTorrentListWithStateFilter(stateFilter: TorrentStateFilter) {
         viewModel.showTorrentListForStateFilter(stateFilter)
-        // The filter chips live in the search bar; open it so the active filter is visible.
-        if (stateFilter != TorrentStateFilter.ALL) showTorrentSearchBar = true
+        // Only this state applies, so the list matches the pill's count; the summary row
+        // above the list shows the selection.
         openTorrentListFromDashboard()
     }
 
@@ -693,10 +696,23 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
-    LaunchedEffect(sortScrollRequestId) {
+    // Sticky headers above the first torrent row; both scroll anchors below need this count.
+    val torrentSelectionActive = selectedTorrentHashes.isNotEmpty()
+    val torrentFilterSummaryActive = torrentListDisplayState.filterChips.isNotEmpty()
+    val torrentListLeadingHeaderCount = torrentListHeaderCount(
+        selectionActive = torrentSelectionActive,
+        showSearchBar = showTorrentSearchBar,
+        hasFilterSummary = torrentFilterSummaryActive,
+    )
+
+    // The header count is a key as well: it changes when the filter summary appears/disappears
+    // or the selection kicks in, and the scroll index above is only valid for the current one.
+    LaunchedEffect(sortScrollRequestId, torrentListLeadingHeaderCount) {
         if (sortScrollRequestId <= 0) return@LaunchedEffect
         if (currentPage != AppPage.TORRENT_LIST) return@LaunchedEffect
-        val targetIndex = if (showTorrentSearchBar && visibleTorrentItems.isNotEmpty()) 1 else 0
+        // An empty list has nothing to scroll to, so stay at the very top instead of below
+        // the headers.
+        val targetIndex = if (visibleTorrentItems.isNotEmpty()) torrentListLeadingHeaderCount else 0
         torrentListState.scrollToItem(targetIndex)
         // Guard against LazyList position restore after data reordering.
         yield()
@@ -708,13 +724,14 @@ fun MainScreen(viewModel: MainViewModel) {
         pendingTorrentReturnIdentity,
         visibleTorrentItems,
         showTorrentSearchBar,
+        torrentListLeadingHeaderCount,
     ) {
         if (currentPage != AppPage.TORRENT_LIST) return@LaunchedEffect
         val anchorIdentity = pendingTorrentReturnIdentity.ifBlank { return@LaunchedEffect }
         val targetListIndex = visibleTorrentItems.indexOfFirst { it.identityKey == anchorIdentity }
         pendingTorrentReturnIdentity = ""
         if (targetListIndex < 0) return@LaunchedEffect
-        val targetIndex = targetListIndex + if (showTorrentSearchBar) 1 else 0
+        val targetIndex = targetListIndex + torrentListLeadingHeaderCount
         torrentListState.scrollToItem(targetIndex)
         yield()
         torrentListState.scrollToItem(targetIndex)
@@ -1002,6 +1019,8 @@ fun MainScreen(viewModel: MainViewModel) {
                         sortDescending = torrentListFilterState.descending,
                         showSearchBar = showTorrentSearchBar,
                         showSortMenu = showTorrentSortMenu,
+                        filterActiveCount = torrentFilterSelectedCount(torrentListFilterState),
+                        onOpenFilterSheet = { showTorrentFilterSheet = true },
                         onSortMenuVisibilityChange = { visible -> showTorrentSortMenu = visible },
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onBack = { backToPreviousPage() },
@@ -1157,12 +1176,8 @@ fun MainScreen(viewModel: MainViewModel) {
                                     animatePlacement = animateTorrentPlacement,
                                     searchQuery = torrentListFilterState.query,
                                     onSearchQueryChange = viewModel::updateTorrentSearchQuery,
-                                    filterState = torrentListFilterState,
-                                    onStateFilterChange = viewModel::updateTorrentListStateFilter,
-                                    onCategoryFilterChange = viewModel::updateTorrentListCategoryFilter,
-                                    onTagFilterChange = viewModel::updateTorrentListTagFilter,
-                                    categoryOptions = state.categoryOptions,
-                                    tagOptions = state.tagOptions,
+                                    filterChips = torrentListDisplayState.filterChips,
+                                    onRemoveFilter = viewModel::toggleTorrentListFilterOption,
                                     visibleItems = visibleTorrentItems,
                                     emptyState = torrentListDisplayState.emptyState,
                                     onClearFilters = viewModel::resetTorrentListFilters,
@@ -1440,6 +1455,17 @@ fun MainScreen(viewModel: MainViewModel) {
                 },
                 onDismissCardManagerSheet = { showDashboardCardManagerSheet = false },
             )
+
+            if (showTorrentFilterSheet) {
+                TorrentListFilterSheet(
+                    sheetState = torrentFilterSheetState,
+                    panelState = torrentListFilterPanelState,
+                    onToggleOption = viewModel::toggleTorrentListFilterOption,
+                    onClearGroup = viewModel::clearTorrentListFilterGroup,
+                    onClearFilters = viewModel::resetTorrentListFilters,
+                    onDismiss = { showTorrentFilterSheet = false },
+                )
+            }
 
             MainScreenDialogs(
                 pendingDeleteProfile = pendingDeleteProfile,

@@ -162,6 +162,21 @@
     <string name="filter_state_completed">Completed</string>
     <string name="filter_state_checking">Checking</string>
     <string name="filter_state_error">Error</string>
+    <string name="torrent_filter_uncategorized">Uncategorized</string>
+    <string name="torrent_filter_no_tracker">No tracker</string>
+    <string name="torrent_filter_no_tag">No tag</string>
+    <string name="torrent_filter_sheet_title">Filter</string>
+    <string name="torrent_filter_clear">Clear</string>
+    <string name="torrent_filter_group_state">Status</string>
+    <string name="torrent_filter_group_category">Category</string>
+    <string name="torrent_filter_group_tag">Tag</string>
+    <string name="torrent_filter_group_tracker">Server</string>
+    <string name="torrent_filter_group_empty">No options</string>
+    <string name="torrent_filter_row_fmt">%1$s (%2$d)</string>
+    <string name="torrent_filter_summary_label">Active filters</string>
+    <string name="torrent_filter_remove">Remove this filter</string>
+    <string name="torrent_filter_visible_count_fmt">Showing %1$d</string>
+    <string name="menu_filter">Filter</string>
 
     <string name="add_torrent_title">Add Torrent</string>
     <string name="torrent_links_title">Torrent links</string>

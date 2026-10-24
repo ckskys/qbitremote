@@ -39,14 +39,23 @@ internal enum class TorrentStateFilter(
     ERROR(R.string.filter_state_error, DashboardStateBucket.ERROR),
 }
 
+/**
+ * Grouped multi-select filter of the torrent list.
+ *
+ * Each section keeps a set of selected keys; an empty set means the section is not
+ * restricted ("全部"). Values inside one section are OR-ed, sections are AND-ed. Keys are
+ * produced by `TorrentListFilterSupport.kt` (state names, lower-cased category / tag /
+ * tracker host, `""` for 未分类 and 没有Tracker).
+ */
 @Immutable
 internal data class TorrentListFilterState(
     val query: String = "",
     val sortOption: TorrentListSortOption = TorrentListSortOption.UPLOAD_SPEED,
     val descending: Boolean = true,
-    val stateFilter: TorrentStateFilter = TorrentStateFilter.ALL,
-    val categoryFilter: String = "",
-    val tagFilter: String = "",
+    val stateFilters: Set<TorrentStateFilter> = emptySet(),
+    val categoryFilters: Set<String> = emptySet(),
+    val tagFilters: Set<String> = emptySet(),
+    val trackerFilters: Set<String> = emptySet(),
 )
 
 @Immutable
@@ -68,6 +77,8 @@ internal data class TorrentListDisplayState(
     val torrentListFilterState: TorrentListFilterState = TorrentListFilterState(),
     val visibleTorrentItems: List<VisibleTorrentItem> = emptyList(),
     val emptyState: TorrentListEmptyState = TorrentListEmptyState.NONE,
+    /** Applied filters as removable chips; empty when no section restricts the list. */
+    val filterChips: List<TorrentFilterChip> = emptyList(),
 )
 
 private data class CrossSeedGroupKey(
@@ -172,27 +183,7 @@ internal fun buildTorrentListDisplayState(
     filterState: TorrentListFilterState,
 ): TorrentListDisplayState {
     val crossSeedCounts = buildCrossSeedCountMap(torrents)
-    val filteredTorrents = run {
-        var result = torrents
-        val query = filterState.query.trim()
-        if (query.isNotBlank()) {
-            result = result.filter { torrent -> matchesTorrentSearch(torrent = torrent, query = query) }
-        }
-        if (filterState.stateFilter != TorrentStateFilter.ALL) {
-            result = result.filter { torrent -> matchesStateFilter(torrent, filterState.stateFilter) }
-        }
-        if (filterState.categoryFilter.isNotBlank()) {
-            val cat = filterState.categoryFilter.trim().lowercase()
-            result = result.filter { torrent -> torrent.category.trim().lowercase() == cat }
-        }
-        if (filterState.tagFilter.isNotBlank()) {
-            val tag = filterState.tagFilter.trim().lowercase()
-            result = result.filter { torrent ->
-                torrent.tags.split(',', ';', '|').any { it.trim().lowercase() == tag }
-            }
-        }
-        result
-    }
+    val filteredTorrents = applyTorrentListFilters(torrents, filterState)
     val visibleItems = sortTorrentList(
         torrents = filteredTorrents,
         sortOption = filterState.sortOption,
@@ -215,6 +206,10 @@ internal fun buildTorrentListDisplayState(
         emptyState = resolveTorrentListEmptyState(
             hasTorrents = torrents.isNotEmpty(),
             visibleCount = visibleItems.size,
+            filterState = filterState,
+        ),
+        filterChips = buildTorrentFilterChips(
+            torrents = torrents,
             filterState = filterState,
         ),
     )

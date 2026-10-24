@@ -2,6 +2,8 @@ package com.hjw.qbremote.ui
 
 import com.hjw.qbremote.data.model.TorrentInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TorrentListEmptyStateSupportTest {
@@ -30,7 +32,7 @@ class TorrentListEmptyStateSupportTest {
     fun buildTorrentListDisplayState_marksFilterNoResultsWhenOnlyFiltersHideEverything() {
         val displayState = buildTorrentListDisplayState(
             torrents = listOf(TorrentInfo(hash = "a", name = "Ubuntu", state = "pauseddl", progress = 0.1f)),
-            filterState = TorrentListFilterState(stateFilter = TorrentStateFilter.SEEDING),
+            filterState = TorrentListFilterState(stateFilters = setOf(TorrentStateFilter.SEEDING)),
         )
 
         assertEquals(TorrentListEmptyState.FILTER_NO_RESULTS, displayState.emptyState)
@@ -44,11 +46,24 @@ class TorrentListEmptyStateSupportTest {
             ),
             filterState = TorrentListFilterState(
                 query = "debian",
-                categoryFilter = "movies",
+                categoryFilters = setOf("movies"),
             ),
         )
 
         assertEquals(TorrentListEmptyState.SEARCH_FILTER_NO_RESULTS, displayState.emptyState)
+    }
+
+    /** A tracker-only selection is a filter too: the empty state must not report "no results". */
+    @Test
+    fun buildTorrentListDisplayState_countsTrackerFiltersAsActiveFilters() {
+        val displayState = buildTorrentListDisplayState(
+            torrents = listOf(
+                TorrentInfo(hash = "a", name = "Ubuntu", tracker = "https://tracker.example.org/announce"),
+            ),
+            filterState = TorrentListFilterState(trackerFilters = setOf("other.example.net")),
+        )
+
+        assertEquals(TorrentListEmptyState.FILTER_NO_RESULTS, displayState.emptyState)
     }
 
     @Test
@@ -57,9 +72,10 @@ class TorrentListEmptyStateSupportTest {
             query = "ubuntu",
             sortOption = TorrentListSortOption.ADDED_TIME,
             descending = false,
-            stateFilter = TorrentStateFilter.ERROR,
-            categoryFilter = "linux",
-            tagFilter = "iso",
+            stateFilters = setOf(TorrentStateFilter.ERROR),
+            categoryFilters = setOf("linux"),
+            tagFilters = setOf("iso"),
+            trackerFilters = setOf("tracker.example.org"),
         )
 
         assertEquals(
@@ -69,6 +85,19 @@ class TorrentListEmptyStateSupportTest {
                 descending = false,
             ),
             clearTorrentListFilters(current),
+        )
+    }
+
+    @Test
+    fun emptySectionSetsAreNotActiveFilters() {
+        assertFalse(hasActiveTorrentListFilters(TorrentListFilterState(query = "debian")))
+        assertFalse(hasActiveTorrentListFilters(TorrentListFilterState()))
+        assertTrue(hasActiveTorrentListFilters(TorrentListFilterState(categoryFilters = setOf("linux"))))
+        assertTrue(hasActiveTorrentListFilters(TorrentListFilterState(tagFilters = setOf("iso"))))
+        assertTrue(
+            hasActiveTorrentListFilters(
+                TorrentListFilterState(trackerFilters = setOf("tracker.example.org")),
+            ),
         )
     }
 }
